@@ -1,0 +1,20 @@
+echo "
+# Credentials and Tokens
+credentials.json
+token.pickle
+
+# Generated Files
+*.xlsx
+downloads/
+
+# Archives
+*.tar.gz
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual Environment (if you have one)
+venv/
+.venv/
+" > .gitignore
