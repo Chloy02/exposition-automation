@@ -1,56 +1,19 @@
 # Exposition Email Automation
 
-> **Status:** Initial Development Phase
+> **Status:** Initial Development & Proof of Concept
 
-This project automates the process of handling email submissions for an exposition. It reads a Gmail inbox, downloads attached images, and organizes the sender's information into an Excel spreadsheet.
-
----
-
-## Core Features (Current)
-
-The main functionality is handled by the `download_to_excel.py` script, which:
-
-* Connects to a Gmail account using the **Google Gmail API**.
-* Scans for and processes unread emails.
-* Extracts key metadata:
-    * Sender's Email
-    * Date of Receipt
-    * Email Subject
-* Downloads all image attachments from each email.
-* Saves all the extracted information neatly into an Excel file named `email_images.xlsx`.
+This project aims to automate the process of handling email submissions for an exposition. The goal is to read a Gmail inbox, download attached images, and organize the sender's information automatically.
 
 ---
 
-## Getting Started
+## Core Functionality (Current)
 
-### Prerequisites
+The current proof of concept is the `download_to_excel.py` script. It is able to:
 
-* Python 3.x
-* A Google Cloud project with the **Gmail API** enabled.
+* Connect to a Gmail account using the Google Gmail API.
+* Scan for and process unread emails.
+* Extract the sender's email, date, and subject line.
+* Download all image attachments from the emails.
+* Save the collected data into an Excel file (`email_images.xlsx`).
 
-### Setup
-
-1.  **Clone the repository:**
-    ```bash
-    git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
-    cd your-repo-name
-    ```
-
-2.  **Install required Python libraries:**
-    ```bash
-    pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib openpyxl
-    ```
-
-3.  **Add your credentials:**
-    * Download your **`credentials.json`** file from your Google Cloud project.
-    * Place it in the root directory of this project.
-
-4.  **First Run & Authorization:**
-    * The first time you run the script, you will be prompted to authorize access to your Gmail account via a browser window.
-    * Completing this step will create a **`token.pickle`** file in the directory. This file stores your authorization so you don't have to log in every time.
-
-### Running the Script
-
-To start processing your emails, run the following command in your terminal:
-```bash
-python download_to_excel.py
+> This project is in its very early stages. More features and setup instructions will be added as development progresses.
