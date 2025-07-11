@@ -1,25 +1,21 @@
 {
   "manifest_version": 3,
   "name": "Exposition Email Automator",
-  "version": "1.1",
+  "version": "2.1",
   "description": "Extracts data and images from Gmail for exposition purposes.",
   "permissions": [
     "storage",
     "activeTab",
     "scripting",
-    "clipboardWrite"
+    "clipboardWrite",
+    "offscreen"
   ],
   "host_permissions": [
     "https://mail.google.com/",
     "https://face-recognise.vercel.app/"
   ],
   "action": {
-    "default_popup": "popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
+    "default_popup": "popup.html"
   },
   "background": {
     "service_worker": "background.js"
@@ -36,8 +32,13 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["lib/face-api.min.js", "models/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "lib/face-api.min.js",
+        "models/*",
+        "offscreen.html",
+        "offscreen.js"
+      ],
+      "matches": [ "<all_urls>" ]
     }
   ]
 }
