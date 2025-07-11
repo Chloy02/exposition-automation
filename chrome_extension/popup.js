@@ -6,34 +6,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusDiv = document.getElementById('status');
     const resultsTableBody = document.querySelector('#resultsTable tbody');
 
-    let modelsLoaded = false;
-
-    // --- Load Models ---
-    const modelPath = chrome.runtime.getURL('/models');
-    Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(modelPath),
-      faceapi.nets.faceLandmark68TinyNet.loadFromUri(modelPath)
-    ]).then(() => {
-        console.log("Face models loaded");
-        modelsLoaded = true;
-        statusDiv.textContent = 'Models loaded. Ready to extract.';
-    }).catch(err => {
-        console.error("Error loading face models:", err);
-        statusDiv.textContent = 'Could not load face models. Ensure the models folder exists.';
-    });
-    
     loadAndRenderData();
-
-    // --- Event Listeners ---
 
     extractBtn.addEventListener('click', () => {
         statusDiv.textContent = 'Extracting email data...';
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            if (tabs.length === 0) { statusDiv.textContent = 'No active tab found.'; return; }
-            chrome.scripting.executeScript({
-                target: { tabId: tabs[0].id },
-                files: ['content.js']
-            }, (injectionResults) => handleExtractionResult(injectionResults));
+            if (tabs[0]) {
+                chrome.scripting.executeScript({
+                    target: { tabId: tabs[0].id },
+                    func: () => {
+                        // This intermediate function helps bridge the async gap
+                        // The result of extractEmailData (a promise) is resolved here
+                        return extractEmailData(); 
+                    }
+                }, (injectionResults) => handleExtractionResult(injectionResults));
+            }
         });
     });
 
@@ -44,21 +31,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- Functions ---
-
     function handleExtractionResult(injectionResults) {
-        if (chrome.runtime.lastError) {
-            statusDiv.textContent = `Error: ${chrome.runtime.lastError.message}`;
-            console.error(chrome.runtime.lastError);
-            return;
-        }
-        if (!injectionResults || injectionResults.length === 0 || !injectionResults[0].result) {
+        if (chrome.runtime.lastError || !injectionResults || !injectionResults[0] || !injectionResults[0].result) {
             statusDiv.textContent = 'Could not extract data. Is a Gmail email open?';
             return;
         }
         const extractedData = injectionResults[0].result;
         statusDiv.textContent = 'Data extracted! Processing images...';
         saveAndProcessData(extractedData);
+    }
+
+    async function saveAndProcessData(newData) {
+        const data = await chrome.storage.local.get({ emails: [] });
+        const emails = data.emails || [];
+
+        if (newData.images && newData.images.length > 0) {
+            statusDiv.textContent = 'Detecting faces... (this may take a moment)';
+            try {
+                const response = await chrome.runtime.sendMessage({
+                    action: 'processImages',
+                    imageUrls: newData.images
+                });
+
+                if (response.success) {
+                    newData.croppedFaces = response.croppedFaces;
+                    statusDiv.textContent = `Extraction complete. Found ${newData.croppedFaces.length} face(s).`;
+                } else {
+                    throw new Error(response.error || 'Unknown error in background script.');
+                }
+            } catch (error) {
+                console.error("Face detection failed:", error);
+                statusDiv.textContent = 'Error: Face detection failed.';
+            }
+        } else {
+            statusDiv.textContent = 'Extraction complete. No images found.';
+        }
+
+        emails.push(newData);
+        await chrome.storage.local.set({ emails });
+        loadAndRenderData();
     }
 
     function loadAndRenderData() {
@@ -68,36 +79,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 data.emails.forEach(email => addRowToTable(email));
                 statusDiv.textContent = `Loaded ${data.emails.length} stored entries.`;
             } else {
-                statusDiv.textContent = 'No data stored. Extract an email to begin.';
+                statusDiv.textContent = 'Ready to extract an email.';
             }
         });
-    }
-
-    async function saveAndProcessData(newData) {
-        let emails = [];
-        const data = await chrome.storage.local.get({ emails: [] });
-        emails = data.emails || [];
-
-        if (modelsLoaded && newData.images && newData.images.length > 0) {
-            statusDiv.textContent = 'Detecting faces...';
-            const faceCanvases = await cropFacesFromUrls(newData.images);
-            newData.croppedFaces = faceCanvases.map(canvas => canvas.toDataURL());
-            statusDiv.textContent = `Extraction complete. Found ${faceCanvases.length} face(s).`;
-        } else {
-            statusDiv.textContent = 'Extraction complete. Face cropping is disabled or no images found.';
-        }
-
-        emails.push(newData);
-        await chrome.storage.local.set({ emails });
-        loadAndRenderData(); // Re-render the whole table to ensure order and listeners
     }
 
     function addRowToTable(emailData) {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${emailData.sender}</td>
+            <td>${emailData.senderEmail || 'N/A'}</td>
             <td>${new Date(emailData.date).toLocaleString()}</td>
-            <td>${emailData.subject}</td>
+            <td>${emailData.subject || 'N/A'}</td>
             <td class="image-cell"><div class="image-container original-images"></div></td>
             <td class="image-cell"><div class="image-container cropped-faces"></div></td>
             <td><button class="button-primary fill-form-btn">Auto-fill</button></td>
@@ -122,7 +114,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         resultsTableBody.prepend(row);
-        return row;
     }
 
     function renderCroppedFaces(container, emailData) {
@@ -153,23 +144,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.appendChild(faceWrapper);
             });
         } else {
-            container.textContent = modelsLoaded ? '...' : 'disabled';
+            container.textContent = '...';
         }
-    }
-
-    async function cropFacesFromUrls(imageUrls) {
-        const faceCanvases = [];
-        for (const url of imageUrls) {
-            try {
-                const image = await faceapi.fetchImage(url);
-                const detections = await faceapi.detectAllFaces(image, new faceapi.TinyFaceDetectorOptions());
-                const canvases = await faceapi.extractFaces(image, detections);
-                faceCanvases.push(...canvases);
-            } catch (error) {
-                console.error(`Could not process image from ${url}`, error);
-            }
-        }
-        return faceCanvases;
     }
 
     function downloadImage(dataUrl, filename) {

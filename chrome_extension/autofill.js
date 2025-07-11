@@ -2,7 +2,6 @@
 
 console.log("Exposition Automator: Autofill script loaded.");
 
-// Function to convert a data URL to a File object
 function dataURLtoFile(dataurl, filename) {
     let arr = dataurl.split(','),
         mime = arr[0].match(/:(.*?);/)[1],
@@ -15,39 +14,44 @@ function dataURLtoFile(dataurl, filename) {
     return new File([u8arr], filename, {type:mime});
 }
 
-// Listen for messages from the popup script
+// FIX: More robust way to set input values for modern frameworks like React
+function setReactInputValue(input, value) {
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+    ).set;
+    nativeInputValueSetter.call(input, value);
+    const event = new Event('input', { bubbles: true });
+    input.dispatchEvent(event);
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "fill_form") {
         console.log("Received data to fill:", request.data);
         
         try {
-            // Fill Email Address using the placeholder text
+            // Fill Email Address
             const emailInput = document.querySelector('input[placeholder="person@example.com"]');
-            if (emailInput) {
-                const emailMatch = request.data.sender.match(/<(.+)>/);
-                if (emailMatch && emailMatch[1]) {
-                    emailInput.value = emailMatch[1];
-                    emailInput.dispatchEvent(new Event('input', { bubbles: true }));
-                }
+            if (emailInput && request.data.senderEmail) {
+                setReactInputValue(emailInput, request.data.senderEmail);
             }
 
-            // Fill Date using the placeholder text
+            // Fill Date
             const dateInput = document.querySelector('input[placeholder="mm / dd / yyyy"]');
-            if (dateInput) {
+            if (dateInput && request.data.date) {
                 const date = new Date(request.data.date);
                 const month = String(date.getMonth() + 1).padStart(2, '0');
                 const day = String(date.getDate()).padStart(2, '0');
                 const year = date.getFullYear();
-                dateInput.value = `${month}/${day}/${year}`;
-                dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+                setReactInputValue(dateInput, `${month}/${day}/${year}`);
             }
 
-             // Fill Time using the placeholder text
+             // Fill Time
              const timeInput = document.querySelector('input[placeholder="--:-- --"]');
-             if(timeInput) {
+             if(timeInput && request.data.date) {
                 const date = new Date(request.data.date);
-                timeInput.value = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-                timeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                const timeValue = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                setReactInputValue(timeInput, timeValue);
              }
 
             // Handle the file upload
@@ -67,9 +71,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         } catch (error) {
             console.error("Error filling form:", error);
-            sendResponse({ status: "Error: Failed to fill the form." });
+            sendResponse({ status: `Error: Failed to fill the form. ${error.message}` });
         }
     }
-    return true; // Keep the message channel open for the response
+    return true;
 });
 
