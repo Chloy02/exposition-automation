@@ -6,55 +6,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusDiv = document.getElementById('status');
     const resultsTableBody = document.querySelector('#resultsTable tbody');
 
-    let modelsLoaded = false; 
+    let modelsLoaded = false;
 
-    // --- Example of how you would load models ---
+    // --- Load Models ---
+    const modelPath = chrome.runtime.getURL('/models');
     Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
-      faceapi.nets.faceLandmark68TinyNet.loadFromUri('/models')
+      faceapi.nets.tinyFaceDetector.loadFromUri(modelPath),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(modelPath)
     ]).then(() => {
         console.log("Face models loaded");
         modelsLoaded = true;
         statusDiv.textContent = 'Models loaded. Ready to extract.';
     }).catch(err => {
         console.error("Error loading face models:", err);
-        statusDiv.textContent = 'Could not load face models.';
+        statusDiv.textContent = 'Could not load face models. Ensure the models folder exists.';
     });
     
-
-
-    // Load and display stored data when the popup opens
     loadAndRenderData();
 
     // --- Event Listeners ---
 
     extractBtn.addEventListener('click', () => {
         statusDiv.textContent = 'Extracting email data...';
-        // Query the active tab
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            if (tabs.length === 0) {
-                statusDiv.textContent = 'No active tab found.';
-                return;
-            }
-            // Execute the content script in the active tab
+            if (tabs.length === 0) { statusDiv.textContent = 'No active tab found.'; return; }
             chrome.scripting.executeScript({
                 target: { tabId: tabs[0].id },
                 files: ['content.js']
-            }, (injectionResults) => {
-                if (chrome.runtime.lastError) {
-                    statusDiv.textContent = `Error: ${chrome.runtime.lastError.message}`;
-                    console.error(chrome.runtime.lastError);
-                    return;
-                }
-
-                if (!injectionResults || injectionResults.length === 0 || !injectionResults[0].result) {
-                    statusDiv.textContent = 'Could not extract data. Is a Gmail email open?';
-                    return;
-                }
-                const extractedData = injectionResults[0].result;
-                statusDiv.textContent = 'Data extracted! Processing images...';
-                saveAndProcessData(extractedData);
-            });
+            }, (injectionResults) => handleExtractionResult(injectionResults));
         });
     });
 
@@ -67,9 +46,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Functions ---
 
+    function handleExtractionResult(injectionResults) {
+        if (chrome.runtime.lastError) {
+            statusDiv.textContent = `Error: ${chrome.runtime.lastError.message}`;
+            console.error(chrome.runtime.lastError);
+            return;
+        }
+        if (!injectionResults || injectionResults.length === 0 || !injectionResults[0].result) {
+            statusDiv.textContent = 'Could not extract data. Is a Gmail email open?';
+            return;
+        }
+        const extractedData = injectionResults[0].result;
+        statusDiv.textContent = 'Data extracted! Processing images...';
+        saveAndProcessData(extractedData);
+    }
+
     function loadAndRenderData() {
         chrome.storage.local.get({ emails: [] }, (data) => {
-            resultsTableBody.innerHTML = ''; // Clear existing table
+            resultsTableBody.innerHTML = '';
             if (data.emails && data.emails.length > 0) {
                 data.emails.forEach(email => addRowToTable(email));
                 statusDiv.textContent = `Loaded ${data.emails.length} stored entries.`;
@@ -80,109 +74,140 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function saveAndProcessData(newData) {
-        // Get existing data from storage
-        chrome.storage.local.get({ emails: [] }, async (data) => {
-            const emails = data.emails || [];
+        let emails = [];
+        const data = await chrome.storage.local.get({ emails: [] });
+        emails = data.emails || [];
 
-            // Add new data and save back to storage
-            emails.push(newData);
-            chrome.storage.local.set({ emails: emails }, () => {
-                console.log('Email data saved.');
-            });
+        if (modelsLoaded && newData.images && newData.images.length > 0) {
+            statusDiv.textContent = 'Detecting faces...';
+            const faceCanvases = await cropFacesFromUrls(newData.images);
+            newData.croppedFaces = faceCanvases.map(canvas => canvas.toDataURL());
+            statusDiv.textContent = `Extraction complete. Found ${faceCanvases.length} face(s).`;
+        } else {
+            statusDiv.textContent = 'Extraction complete. Face cropping is disabled or no images found.';
+        }
 
-            // Add the new row to the table immediately
-            const row = addRowToTable(newData);
-            
-            // Process images for face detection (if models were loaded)
-            if (modelsLoaded && newData.images && newData.images.length > 0) {
-                statusDiv.textContent = 'Detecting faces...';
-                const croppedFacesContainer = row.querySelector('.cropped-faces');
-                croppedFacesContainer.textContent = 'detecting...';
-
-                const faceImages = await cropFacesFromUrls(newData.images);
-                
-                croppedFacesContainer.innerHTML = ''; // Clear 'detecting...'
-                if (faceImages.length > 0) {
-                    faceImages.forEach(faceUrl => {
-                        const img = document.createElement('img');
-                        img.src = faceUrl;
-                        croppedFacesContainer.appendChild(img);
-                    });
-                     statusDiv.textContent = `Extraction complete. Found ${faceImages.length} face(s).`;
-                } else {
-                    croppedFacesContainer.textContent = 'none';
-                    statusDiv.textContent = 'Extraction complete. No faces found.';
-                }
-                // Here you would update the storage again with the cropped face data if needed
-            } else {
-                 statusDiv.textContent = 'Extraction complete. Face cropping disabled.';
-            }
-        });
+        emails.push(newData);
+        await chrome.storage.local.set({ emails });
+        loadAndRenderData(); // Re-render the whole table to ensure order and listeners
     }
 
     function addRowToTable(emailData) {
         const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${emailData.sender}</td>
+            <td>${new Date(emailData.date).toLocaleString()}</td>
+            <td>${emailData.subject}</td>
+            <td class="image-cell"><div class="image-container original-images"></div></td>
+            <td class="image-cell"><div class="image-container cropped-faces"></div></td>
+            <td><button class="button-primary fill-form-btn">Auto-fill</button></td>
+        `;
 
-        const senderCell = document.createElement('td');
-        senderCell.textContent = emailData.sender;
-        row.appendChild(senderCell);
-
-        const dateCell = document.createElement('td');
-        dateCell.textContent = new Date(emailData.date).toLocaleString();
-        row.appendChild(dateCell);
-
-        const subjectCell = document.createElement('td');
-        subjectCell.textContent = emailData.subject;
-        row.appendChild(subjectCell);
-
-        // Cell for original images
-        const imagesCell = document.createElement('td');
-        const imageContainer = document.createElement('div');
-        imageContainer.className = 'image-container';
+        const originalImagesContainer = row.querySelector('.original-images');
         if (emailData.images && emailData.images.length > 0) {
             emailData.images.forEach(url => {
                 const img = document.createElement('img');
                 img.src = url;
-                imageContainer.appendChild(img);
+                originalImagesContainer.appendChild(img);
             });
         } else {
-            imageContainer.textContent = 'none';
+            originalImagesContainer.textContent = 'none';
         }
-        imagesCell.appendChild(imageContainer);
-        row.appendChild(imagesCell);
 
-        // Cell for cropped faces
-        const croppedFacesCell = document.createElement('td');
-        const croppedFacesContainer = document.createElement('div');
-        croppedFacesContainer.className = 'image-container cropped-faces';
-        // Initially empty, will be populated by face detection
-        croppedFacesContainer.textContent = modelsLoaded ? '...' : 'disabled';
-        croppedFacesCell.appendChild(croppedFacesContainer);
-        row.appendChild(croppedFacesCell);
+        const croppedFacesContainer = row.querySelector('.cropped-faces');
+        renderCroppedFaces(croppedFacesContainer, emailData);
 
-        // Prepend the new row to the table body
+        row.querySelector('.fill-form-btn').addEventListener('click', () => {
+            autoFillForm(emailData);
+        });
+
         resultsTableBody.prepend(row);
         return row;
     }
 
+    function renderCroppedFaces(container, emailData) {
+        container.innerHTML = '';
+        if (emailData.croppedFaces && emailData.croppedFaces.length > 0) {
+            emailData.croppedFaces.forEach((faceDataUrl, index) => {
+                const faceWrapper = document.createElement('div');
+                faceWrapper.className = 'face-wrapper';
+                
+                const img = document.createElement('img');
+                img.src = faceDataUrl;
+                faceWrapper.appendChild(img);
+
+                const actions = document.createElement('div');
+                actions.className = 'face-actions';
+                
+                const copyBtn = document.createElement('button');
+                copyBtn.textContent = 'Copy';
+                copyBtn.onclick = () => copyImageToClipboard(faceDataUrl);
+                actions.appendChild(copyBtn);
+
+                const downloadBtn = document.createElement('button');
+                downloadBtn.textContent = 'Save';
+                downloadBtn.onclick = () => downloadImage(faceDataUrl, `face_${emailData.id}_${index}.png`);
+                actions.appendChild(downloadBtn);
+
+                faceWrapper.appendChild(actions);
+                container.appendChild(faceWrapper);
+            });
+        } else {
+            container.textContent = modelsLoaded ? '...' : 'disabled';
+        }
+    }
+
     async function cropFacesFromUrls(imageUrls) {
-        const faceImages = [];
+        const faceCanvases = [];
         for (const url of imageUrls) {
             try {
                 const image = await faceapi.fetchImage(url);
                 const detections = await faceapi.detectAllFaces(image, new faceapi.TinyFaceDetectorOptions());
-
-                for (const detection of detections) {
-                    const faceCanvas = await faceapi.extractFaces(image, [detection]);
-                    if (faceCanvas.length > 0) {
-                        faceImages.push(faceCanvas[0].toDataURL());
-                    }
-                }
+                const canvases = await faceapi.extractFaces(image, detections);
+                faceCanvases.push(...canvases);
             } catch (error) {
                 console.error(`Could not process image from ${url}`, error);
             }
         }
-        return faceImages;
+        return faceCanvases;
+    }
+
+    function downloadImage(dataUrl, filename) {
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = filename;
+        link.click();
+    }
+
+    async function copyImageToClipboard(dataUrl) {
+        try {
+            const response = await fetch(dataUrl);
+            const blob = await response.blob();
+            await navigator.clipboard.write([
+                new ClipboardItem({ [blob.type]: blob })
+            ]);
+            statusDiv.textContent = 'Image copied to clipboard!';
+        } catch (error) {
+            console.error('Failed to copy image: ', error);
+            statusDiv.textContent = 'Error: Could not copy image.';
+        }
+    }
+
+    function autoFillForm(emailData) {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs.length > 0) {
+                chrome.tabs.sendMessage(tabs[0].id, {
+                    action: "fill_form",
+                    data: emailData
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        statusDiv.textContent = 'Could not connect. Is the target site open?';
+                    } else if (response) {
+                        statusDiv.textContent = response.status;
+                    }
+                });
+            }
+        });
     }
 });
 
