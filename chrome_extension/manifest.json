@@ -1,20 +1,38 @@
 {
-    "manifest_version": 3,
-    "name": "Gmail Page Email Extractor",
-    "version": "1.0",
-    "description": "Extracts sender, subject, date, and attachment links from visible Gmail emails.",
-    "permissions": ["scripting", "activeTab"],
-    "host_permissions": ["https://mail.google.com/*"],
-    "action": {
-      "default_popup": "popup.html"
-    },
-    "background": {
-      "service_worker": "background.js"
-    },
-    "content_scripts": [
-      {
-        "matches": ["https://mail.google.com/*"],
-        "js": ["content.js"]
-      }
-    ]
-  }
+  "manifest_version": 3,
+  "name": "Exposition Email Automator",
+  "version": "1.0",
+  "description": "Extracts data and images from Gmail for exposition purposes.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://mail.google.com/"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["lib/face-api.min.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
+

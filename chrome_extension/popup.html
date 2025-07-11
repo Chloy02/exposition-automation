@@ -1,12 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Gmail Extractor</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exposition Email Automator</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <button id="extract">Extract Visible Emails</button>
-  <div id="status"></div>
-  <a id="download" style="display:none;">Download CSV</a>
-  <script src="popup.js"></script>
+    <div class="header">
+        <h1>Exposition Automator</h1>
+        <p>Extracts email data and images from Gmail.</p>
+    </div>
+
+    <div class="actions">
+        <button id="extractBtn" class="button-primary">Extract Emails from Current Page</button>
+        <button id="clearBtn" class="button-secondary">Clear Stored Data</button>
+    </div>
+
+    <div id="status"></div>
+
+    <div class="results-container">
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Sender</th>
+                    <th>Date</th>
+                    <th>Subject</th>
+                    <th>Images</th>
+                    <th>Cropped Faces</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Data will be inserted here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script src="lib/face-api.min.js"></script>
+    <script src="popup.js"></script>
 </body>
 </html>
+
