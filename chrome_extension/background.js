@@ -1,32 +1,30 @@
 // background.js
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // Listens for the message from popup.js
     if (request.action === 'processImages') {
-        handleImageProcessing(request.imageUrls)
+        // The data is now in request.imageDataUrls
+        handleImageProcessing(request.imageDataUrls)
             .then(croppedFaces => sendResponse({ success: true, croppedFaces }))
             .catch(error => {
-                console.error('Error in background image processing:', error);
+                console.error('Error during offscreen processing:', error);
                 sendResponse({ success: false, error: error.message });
             });
-        return true; // Keep channel open for async response
+        return true; // Keep the message channel open for the async response
     }
 });
 
-let creating;
+let creating; // Promise to prevent race conditions when creating the offscreen document
 
-async function hasOffscreenDocument() {
+// Manages the creation and existence of the offscreen document
+async function handleImageProcessing(imageDataUrls) {
     const offscreenUrl = chrome.runtime.getURL('offscreen.html');
-    const clients = await self.clients.matchAll();
-    for (const client of clients) {
-        if (client.url === offscreenUrl) {
-            return true;
-        }
-    }
-    return false;
-}
+    const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT'],
+        documentUrls: [offscreenUrl]
+    });
 
-async function handleImageProcessing(imageUrls) {
-    if (!(await hasOffscreenDocument())) {
+    if (!existingContexts.length) {
         if (creating) {
             await creating;
         } else {
@@ -40,11 +38,14 @@ async function handleImageProcessing(imageUrls) {
         }
     }
 
+    // Send the data URIs to the offscreen document for processing
     const croppedFaces = await chrome.runtime.sendMessage({
         action: 'offscreenProcess',
-        imageUrls: imageUrls,
+        imageDataUrls: imageDataUrls, // Forwarding the correct data
     });
     
+    // Close the offscreen document after a short delay to save memory
+    setTimeout(() => chrome.offscreen.closeDocument(), 10000);
+
     return croppedFaces;
 }
-
