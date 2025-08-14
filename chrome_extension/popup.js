@@ -2,6 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     const extractBtn = document.getElementById('extractBtn');
+    const debugBtn = document.getElementById('debugBtn');
     const clearBtn = document.getElementById('clearBtn');
     const statusDiv = document.getElementById('status');
     const resultsTableBody = document.querySelector('#resultsTable tbody');
@@ -22,10 +23,33 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                     if (injectionResults[0].result === null) {
-                         statusDiv.textContent = 'Could not find a valid email container on the page.';
+                         statusDiv.textContent = 'Could not find a valid email container on the page. Make sure an email is fully opened.';
                          return;
                     }
-                    handleExtractionResult(injectionResults[0].result);
+                    const result = injectionResults[0].result;
+                    statusDiv.textContent = `Found email with ${result.images.length} image(s). Processing...`;
+                    handleExtractionResult(result);
+                });
+            } else {
+                statusDiv.textContent = 'Please open an email in Gmail first.';
+            }
+        });
+    });
+
+    debugBtn.addEventListener('click', () => {
+        statusDiv.textContent = 'Running debug script...';
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs[0] && tabs[0].url.includes("mail.google.com")) {
+                chrome.scripting.executeScript({
+                    target: { tabId: tabs[0].id },
+                    files: ['debug_attachments.js']
+                }, () => {
+                    if (chrome.runtime.lastError) {
+                        statusDiv.textContent = 'Debug failed. Check console for errors.';
+                        console.error("Debug error:", chrome.runtime.lastError);
+                    } else {
+                        statusDiv.textContent = 'Debug complete! Check browser console for detailed output.';
+                    }
                 });
             } else {
                 statusDiv.textContent = 'Please open an email in Gmail first.';

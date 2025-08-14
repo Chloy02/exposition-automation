@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Face Detection Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .image-container { margin: 20px 0; }
+        img { max-width: 300px; margin: 10px; border: 1px solid #ccc; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Face Detection Debug Page</h1>
+        <div id="status" class="status">Ready to test face detection...</div>
+        
+        <button onclick="testModelLoading()">Test Model Loading</button>
+        <button onclick="testFaceDetection()">Test Face Detection</button>
+        
+        <div class="image-container">
+            <h3>Test Image:</h3>
+            <img id="testImage" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlRlc3QgSW1hZ2U8L3RleHQ+Cjwvc3ZnPgo=" alt="Test Image">
+        </div>
+        
+        <div class="image-container">
+            <h3>Detected Faces:</h3>
+            <div id="faces"></div>
+        </div>
+    </div>
+
+    <script src="./lib/face-api.min.js"></script>
+    <script>
+        let modelsLoaded = false;
+
+        async function loadModels() {
+            if (modelsLoaded) return;
+            
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = 'Loading face detection models...';
+            statusDiv.className = 'status';
+            
+            try {
+                const modelPath = chrome.runtime.getURL('models');
+                console.log("Loading models from:", modelPath);
+                
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(modelPath),
+                    faceapi.nets.faceLandmark68TinyNet.loadFromUri(modelPath)
+                ]);
+                
+                modelsLoaded = true;
+                statusDiv.textContent = 'Models loaded successfully!';
+                statusDiv.className = 'status success';
+                console.log("Models loaded successfully");
+            } catch (error) {
+                statusDiv.textContent = 'Failed to load models: ' + error.message;
+                statusDiv.className = 'status error';
+                console.error("Failed to load models:", error);
+                throw error;
+            }
+        }
+
+        async function testModelLoading() {
+            try {
+                await loadModels();
+            } catch (error) {
+                console.error("Model loading test failed:", error);
+            }
+        }
+
+        async function testFaceDetection() {
+            const statusDiv = document.getElementById('status');
+            const facesDiv = document.getElementById('faces');
+            
+            try {
+                await loadModels();
+                
+                statusDiv.textContent = 'Testing face detection...';
+                statusDiv.className = 'status';
+                
+                // Create a simple test image with a face-like pattern
+                const canvas = document.createElement('canvas');
+                canvas.width = 300;
+                canvas.height = 200;
+                const ctx = canvas.getContext('2d');
+                
+                // Draw a simple face-like pattern
+                ctx.fillStyle = '#ffdbac';
+                ctx.fillRect(100, 50, 100, 120);
+                
+                // Eyes
+                ctx.fillStyle = '#000';
+                ctx.fillRect(115, 80, 15, 15);
+                ctx.fillRect(170, 80, 15, 15);
+                
+                // Nose
+                ctx.fillRect(145, 100, 10, 20);
+                
+                // Mouth
+                ctx.fillRect(130, 130, 40, 5);
+                
+                const testImage = canvas.toDataURL();
+                
+                // Test face detection
+                const img = new Image();
+                img.onload = async () => {
+                    try {
+                        const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions());
+                        
+                        if (detections.length > 0) {
+                            statusDiv.textContent = `Face detection successful! Found ${detections.length} face(s).`;
+                            statusDiv.className = 'status success';
+                            
+                            // Extract and display faces
+                            const faceCanvases = await faceapi.extractFaces(img, detections);
+                            facesDiv.innerHTML = '';
+                            
+                            faceCanvases.forEach((canvas, index) => {
+                                const faceImg = document.createElement('img');
+                                faceImg.src = canvas.toDataURL();
+                                faceImg.alt = `Face ${index + 1}`;
+                                facesDiv.appendChild(faceImg);
+                            });
+                        } else {
+                            statusDiv.textContent = 'No faces detected in test image.';
+                            statusDiv.className = 'status';
+                        }
+                    } catch (error) {
+                        statusDiv.textContent = 'Face detection failed: ' + error.message;
+                        statusDiv.className = 'status error';
+                        console.error("Face detection error:", error);
+                    }
+                };
+                img.src = testImage;
+                
+            } catch (error) {
+                statusDiv.textContent = 'Test failed: ' + error.message;
+                statusDiv.className = 'status error';
+                console.error("Test failed:", error);
+            }
+        }
+    </script>
+</body>
+</html> 
