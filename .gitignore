@@ -19,4 +19,4 @@ venv/
 .venv/
 " > .gitignore
 
-structure.txt
+bkp_files/

@@ -66,7 +66,8 @@ async function extractEmailData() {
     const date = dateElement ? dateElement.getAttribute('title') : new Date().toISOString();
 
     // --- Extract and Convert Images ---
-    const imageUrls = [];
+    const fullImageUrls = [];
+    const previewImageUrls = [];
     const seenUrls = new Set();
     
     // Look for image attachments in <a> tags with href attributes
@@ -101,9 +102,19 @@ async function extractEmailData() {
                 link.closest('[aria-label*="image"]');
             
             if (isImageAttachment) {
-                imageUrls.push(href);
+                // Determine if this is a full image or preview based on URL patterns
+                const isFullImage = href.includes('disp=attd') || 
+                                  href.includes('download_url') || 
+                                  (!href.includes('view=fimg') && href.includes('view=att'));
+                
+                if (isFullImage) {
+                    fullImageUrls.push(href);
+                    console.log('Found FULL image attachment:', href);
+                } else {
+                    previewImageUrls.push(href);
+                    console.log('Found PREVIEW image attachment:', href);
+                }
                 seenUrls.add(href);
-                console.log('Found image attachment:', href);
                 console.log('Link text:', linkText, 'Parent text:', parentText);
             }
         }
@@ -117,22 +128,37 @@ async function extractEmailData() {
             const linkContext = link.closest('span')?.textContent || link.textContent || '';
             if (linkContext.toLowerCase().includes('image/') || 
                 linkContext.match(/\.(jpg|jpeg|png|gif|webp|heif|heic)/i)) {
-                imageUrls.push(href);
+                
+                // Categorize as full or preview image
+                const isFullImage = href.includes('disp=attd') || 
+                                  href.includes('download_url') || 
+                                  (!href.includes('view=fimg') && href.includes('view=att'));
+                
+                if (isFullImage) {
+                    fullImageUrls.push(href);
+                    console.log('Found FULL attachment link:', href);
+                } else {
+                    previewImageUrls.push(href);
+                    console.log('Found PREVIEW attachment link:', href);
+                }
                 seenUrls.add(href);
-                console.log('Found attachment link:', href);
                 console.log('Context:', linkContext);
             }
         }
     });
     
-    // Also check for inline images (keeping the original logic as backup)
+    // Check for inline images (these are usually previews)
     emailContainer.querySelectorAll('img').forEach(img => {
         if (img.src && img.src.includes('view=fimg') && img.naturalWidth > 50 && !seenUrls.has(img.src)) {
-            imageUrls.push(img.src);
+            previewImageUrls.push(img.src);
             seenUrls.add(img.src);
-            console.log('Found inline image:', img.src);
+            console.log('Found inline preview image:', img.src);
         }
     });
+    
+    // Prioritize full images over previews
+    const imageUrls = fullImageUrls.length > 0 ? fullImageUrls : previewImageUrls;
+    console.log(`Image selection: ${fullImageUrls.length} full images, ${previewImageUrls.length} previews. Using: ${imageUrls.length} images.`);
 
     // Use Promise.all to fetch and convert all images concurrently
     console.log('Found', imageUrls.length, 'potential image URLs:', imageUrls);

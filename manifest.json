@@ -9,9 +9,6 @@
     "scripting",
     "offscreen"
   ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self';"
-  },
   "host_permissions": [
     "https://mail.google.com/",
     "https://face-recognise.vercel.app/"
@@ -35,12 +32,16 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "models/*",
-        "lib/face-api.min.js"
+        "simpleFaceDetection.js",
+        "offscreen.html",
+        "offscreen.js",
+        "debug_attachments.js",
+        "debug.html"
       ],
       "matches": [
         "https://mail.google.com/*",
-        "https://face-recognise.vercel.app/*"
+        "https://face-recognise.vercel.app/*",
+        "<all_urls>"
       ]
     }
   ]

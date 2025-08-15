@@ -33,43 +33,23 @@
         </div>
     </div>
 
-    <script src="./lib/face-api.min.js"></script>
     <script>
-        let modelsLoaded = false;
+        // Debug functionality without face-api.js dependency
+        let debugMode = true;
 
         async function loadModels() {
-            if (modelsLoaded) return;
-            
             const statusDiv = document.getElementById('status');
-            statusDiv.textContent = 'Loading face detection models...';
-            statusDiv.className = 'status';
-            
-            try {
-                const modelPath = chrome.runtime.getURL('models');
-                console.log("Loading models from:", modelPath);
-                
-                await Promise.all([
-                    faceapi.nets.tinyFaceDetector.loadFromUri(modelPath),
-                    faceapi.nets.faceLandmark68TinyNet.loadFromUri(modelPath)
-                ]);
-                
-                modelsLoaded = true;
-                statusDiv.textContent = 'Models loaded successfully!';
-                statusDiv.className = 'status success';
-                console.log("Models loaded successfully");
-            } catch (error) {
-                statusDiv.textContent = 'Failed to load models: ' + error.message;
-                statusDiv.className = 'status error';
-                console.error("Failed to load models:", error);
-                throw error;
-            }
+            statusDiv.textContent = 'Simple face detection ready (no models needed)';
+            statusDiv.className = 'status success';
+            return true;
         }
 
         async function testModelLoading() {
             try {
                 await loadModels();
+                console.log("Simple face detection ready");
             } catch (error) {
-                console.error("Model loading test failed:", error);
+                console.error("Face detection initialization failed:", error);
             }
         }
 

@@ -16,6 +16,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ success: false, error: error.message });
             });
         return true; // Keep the message channel open for the async response
+    } else if (request.action === 'testModels') {
+        console.log("Background: Received model test request");
+        handleModelTesting()
+            .then(result => {
+                console.log("Background: Model test complete", result);
+                sendResponse(result);
+            })
+            .catch(error => {
+                console.error('Background: Model test error:', error);
+                sendResponse({ success: false, error: error.message });
+            });
+        return true;
     }
 });
 
@@ -71,4 +83,42 @@ async function handleImageProcessing(imageDataUrls) {
     }, 10000);
 
     return croppedFaces;
+}
+
+// Handle model testing
+async function handleModelTesting() {
+    const offscreenUrl = chrome.runtime.getURL('offscreen.html');
+    console.log("Background: Setting up offscreen document for model testing...");
+    
+    const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT'],
+        documentUrls: [offscreenUrl]
+    });
+
+    if (!existingContexts.length) {
+        console.log("Background: Creating offscreen document for model test...");
+        if (creating) {
+            await creating;
+        } else {
+            creating = chrome.offscreen.createDocument({
+                url: 'offscreen.html',
+                reasons: ['BLOBS'],
+                justification: 'Test face detection models in a DOM environment',
+            });
+            await creating;
+            creating = null;
+        }
+    }
+
+    // Wait for offscreen document to be ready
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Test the models
+    console.log("Background: Testing models in offscreen document...");
+    const result = await chrome.runtime.sendMessage({
+        action: 'testModels'
+    });
+    
+    console.log("Background: Model test result:", result);
+    return result;
 }

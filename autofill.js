@@ -84,7 +84,7 @@ async function fillForm(data) {
 
         // --- Fill Date ---
         try {
-            const dateInput = await waitForElement('input[placeholder*="mm"][placeholder*="dd"][placeholder*="yyyy"]');
+            const dateInput = await waitForElement('input[placeholder*="mm/dd/yyyy" i], input[type="date"], input[placeholder*="date" i]');
             if (dateInput && data.date) {
                 const date = new Date(data.date);
                 const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -99,7 +99,7 @@ async function fillForm(data) {
 
         // --- Fill Time ---
         try {
-            const timeInput = await waitForElement('input[placeholder*="--:--"]');
+            const timeInput = await waitForElement('input[placeholder*="--:--"], input[type="time"], input[placeholder*="time" i]');
             if(timeInput && data.date) {
                 const date = new Date(data.date);
                 const timeValue = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -136,27 +136,35 @@ async function fillForm(data) {
 }
 
 // --- Script Entry Point ---
-// When the script loads, check storage for autofill data.
-chrome.storage.local.get('autofillData', (result) => {
-    if (result.autofillData) {
-        console.log("Autofill data found, waiting for page to load...");
+// Updated to not automatically trigger, only when manually called
+console.log("Exposition Automator: Autofill script loaded (manual trigger mode).");
+
+// Make fillForm available globally for manual triggering
+window.fillForm = fillForm;
+
+// Only auto-trigger if there's autofillData AND a special flag
+chrome.storage.local.get(['autofillData', 'triggerAutofill'], (result) => {
+    if (result.autofillData && result.triggerAutofill) {
+        console.log("Autofill data found with trigger flag, waiting for page to load...");
         
         // Wait for the page to be fully loaded before attempting to fill
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
-                setTimeout(() => fillForm(result.autofillData), 1000);
+                setTimeout(() => {
+                    fillForm(result.autofillData);
+                    // Clear both the data and the trigger flag
+                    chrome.storage.local.remove(['autofillData', 'triggerAutofill']);
+                }, 1000);
             });
         } else {
             // Page is already loaded, wait a bit for React to render
-            setTimeout(() => fillForm(result.autofillData), 1000);
+            setTimeout(() => {
+                fillForm(result.autofillData);
+                // Clear both the data and the trigger flag
+                chrome.storage.local.remove(['autofillData', 'triggerAutofill']);
+            }, 1000);
         }
-        
-        // IMPORTANT: Remove the data from storage after using it to prevent
-        // it from re-filling every time you visit the page.
-        chrome.storage.local.remove('autofillData', () => {
-            console.log("Autofill data has been used and cleared.");
-        });
     } else {
-        console.log("No autofill data found in storage.");
+        console.log("No autofill trigger found - waiting for manual activation.");
     }
 });
