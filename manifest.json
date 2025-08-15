@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Exposition Email Automator",
+  "version": "2.3",
+  "description": "Extracts data and images from Gmail for exposition purposes.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://mail.google.com/",
+    "https://face-recognise.vercel.app/"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content.js"]
+    },
+    {
+      "matches": ["https://face-recognise.vercel.app/*"],
+      "js": ["autofill.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "simpleFaceDetection.js",
+        "offscreen.html",
+        "offscreen.js",
+        "debug_attachments.js",
+        "debug.html"
+      ],
+      "matches": [
+        "https://mail.google.com/*",
+        "https://face-recognise.vercel.app/*",
+        "<all_urls>"
+      ]
+    }
+  ]
+}
