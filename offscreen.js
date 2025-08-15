@@ -158,22 +158,36 @@ async function processImagesWithProgress(imageDataUrls, progressCallback) {
 // Process a single image (extracted for better error handling)
 async function processSingleImage(image, imageNumber) {
     console.log(`Starting face detection for image ${imageNumber}...`);
+    console.log(`Image dimensions: ${image.width}x${image.height}`);
     
-    const faces = await faceDetector.detectFaces(image);
-    console.log(`Found ${faces.length} potential faces in image ${imageNumber}`);
-    
-    if (faces.length > 0) {
-        console.log(`Cropping ${faces.length} faces from image ${imageNumber}...`);
-        const croppedFaces = await faceDetector.cropFaces(image, faces);
+    try {
+        const faces = await faceDetector.detectFaces(image);
+        console.log(`Found ${faces.length} potential faces in image ${imageNumber}`);
         
-        croppedFaces.forEach((_, faceIndex) => {
-            console.log(`Cropped face ${faceIndex + 1} from image ${imageNumber}`);
+        // Log face details for debugging
+        faces.forEach((face, index) => {
+            console.log(`Face ${index + 1}: x=${face.x}, y=${face.y}, w=${face.width}, h=${face.height}, confidence=${face.confidence}`);
         });
         
-        return croppedFaces;
-    } else {
-        console.log(`No faces detected in image ${imageNumber}, using fallback crop`);
-        // Create a center crop as fallback
+        if (faces.length > 0) {
+            console.log(`Cropping ${faces.length} faces from image ${imageNumber}...`);
+            const croppedFaces = await faceDetector.cropFaces(image, faces);
+            
+            croppedFaces.forEach((faceDataUrl, faceIndex) => {
+                const sizeKB = Math.round(faceDataUrl.length * 0.75 / 1024);
+                console.log(`Cropped face ${faceIndex + 1} from image ${imageNumber} (${sizeKB}KB)`);
+            });
+            
+            return croppedFaces;
+        } else {
+            console.log(`No faces detected in image ${imageNumber}, using fallback crop`);
+            // Create a center crop as fallback
+            const fallbackCrop = createFallbackCrop(image);
+            return [fallbackCrop];
+        }
+    } catch (error) {
+        console.error(`Error processing image ${imageNumber}:`, error);
+        // Create fallback crop on error
         const fallbackCrop = createFallbackCrop(image);
         return [fallbackCrop];
     }

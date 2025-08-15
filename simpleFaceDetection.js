@@ -51,24 +51,27 @@ class SimpleFaceDetector {
         }
     }
 
-    // Optimize image size for faster processing
+    // Optimize image size for faster processing (balanced for accuracy)
     optimizeImageForProcessing(imageElement) {
-        const maxDimension = 1000; // Increased from 800px for better detection
+        const optimalDimension = 800; // Optimal balance between speed and accuracy
         const { width, height } = imageElement;
         
-        // If image is small enough, use as-is
-        if (width <= maxDimension && height <= maxDimension) {
+        console.log(`Original image size: ${width}x${height}`);
+        
+        // If image is reasonably sized, use as-is
+        if (width <= optimalDimension && height <= optimalDimension) {
+            console.log("Image size optimal, using original");
             return imageElement;
         }
         
         // Calculate new dimensions maintaining aspect ratio
         let newWidth, newHeight;
         if (width > height) {
-            newWidth = maxDimension;
-            newHeight = Math.round((height * maxDimension) / width);
+            newWidth = optimalDimension;
+            newHeight = Math.round((height * optimalDimension) / width);
         } else {
-            newHeight = maxDimension;
-            newWidth = Math.round((width * maxDimension) / height);
+            newHeight = optimalDimension;
+            newWidth = Math.round((width * optimalDimension) / height);
         }
         
         // Create optimized canvas
@@ -77,12 +80,12 @@ class SimpleFaceDetector {
         optimizedCanvas.width = newWidth;
         optimizedCanvas.height = newHeight;
         
-        // Draw resized image with smooth scaling
+        // Draw resized image with best quality settings
         optimizedCtx.imageSmoothingEnabled = true;
         optimizedCtx.imageSmoothingQuality = 'high';
         optimizedCtx.drawImage(imageElement, 0, 0, newWidth, newHeight);
         
-        console.log(`Optimized image from ${width}x${height} to ${newWidth}x${newHeight} for processing`);
+        console.log(`Optimized image to ${newWidth}x${newHeight} for processing`);
         return optimizedCanvas;
     }
 
@@ -141,16 +144,21 @@ class SimpleFaceDetector {
         return skinPixels;
     }
 
-    // Check if RGB values represent skin tone
+    // Check if RGB values represent skin tone (improved algorithm)
     isSkinTone(r, g, b) {
-        // Multiple skin tone detection algorithms
+        // Multiple skin tone detection algorithms for better coverage
         
-        // Algorithm 1: Basic RGB ranges
+        // Algorithm 1: Basic RGB ranges (covers most skin tones)
         const basic = (r > 95 && g > 40 && b > 20 && 
                       Math.max(r, g, b) - Math.min(r, g, b) > 15 &&
                       Math.abs(r - g) > 15 && r > g && r > b);
         
-        // Algorithm 2: Normalized RGB
+        // Algorithm 2: Extended RGB ranges for darker skin tones
+        const extended = (r > 80 && g > 30 && b > 15 && 
+                         r > g && r > b && 
+                         Math.max(r, g, b) - Math.min(r, g, b) > 10);
+        
+        // Algorithm 3: Normalized RGB for better lighting tolerance
         const sum = r + g + b;
         if (sum === 0) return false;
         
@@ -158,17 +166,17 @@ class SimpleFaceDetector {
         const gNorm = g / sum;
         const bNorm = b / sum;
         
-        const normalized = (rNorm > 0.36 && rNorm < 0.465 && 
-                           gNorm > 0.28 && gNorm < 0.363 &&
-                           bNorm > 0.18 && bNorm < 0.30);
+        const normalized = (rNorm > 0.30 && rNorm < 0.50 && 
+                           gNorm > 0.25 && gNorm < 0.40 &&
+                           bNorm > 0.15 && bNorm < 0.35);
         
-        // Algorithm 3: HSV-based detection
+        // Algorithm 4: HSV-based detection for varied lighting
         const hsv = this.rgbToHsv(r, g, b);
-        const hsvBased = (hsv.h >= 0 && hsv.h <= 35 && 
-                         hsv.s >= 0.15 && hsv.s <= 0.7 &&
-                         hsv.v >= 0.35 && hsv.v <= 0.95);
+        const hsvBased = (hsv.h >= 0 && hsv.h <= 40 && 
+                         hsv.s >= 0.10 && hsv.s <= 0.8 &&
+                         hsv.v >= 0.30 && hsv.v <= 0.95);
         
-        return basic || normalized || hsvBased;
+        return basic || extended || normalized || hsvBased;
     }
 
     // Convert RGB to HSV
@@ -259,24 +267,48 @@ class SimpleFaceDetector {
         };
     }
 
-    // Validate if a region could be a face
+    // Validate if a region could be a face (improved validation)
     validateFaceArea(area, width, height) {
         const faceWidth = area.maxX - area.minX;
         const faceHeight = area.maxY - area.minY;
         
-        // Face should be reasonably sized
-        if (faceWidth < 30 || faceHeight < 30) return false;
-        if (faceWidth > width * 0.8 || faceHeight > height * 0.8) return false;
+        // Face should be reasonably sized (adjusted for better detection)
+        const minFaceSize = Math.min(width, height) * 0.05; // At least 5% of smaller dimension
+        const maxFaceSize = Math.min(width, height) * 0.7;  // At most 70% of smaller dimension
         
-        // Face should have reasonable aspect ratio (faces are usually taller than wide)
+        if (faceWidth < minFaceSize || faceHeight < minFaceSize) {
+            console.log(`Rejected face: too small (${faceWidth}x${faceHeight}, min: ${minFaceSize})`);
+            return false;
+        }
+        if (faceWidth > maxFaceSize || faceHeight > maxFaceSize) {
+            console.log(`Rejected face: too large (${faceWidth}x${faceHeight}, max: ${maxFaceSize})`);
+            return false;
+        }
+        
+        // Face should have reasonable aspect ratio (more tolerant range)
         const aspectRatio = faceHeight / faceWidth;
-        if (aspectRatio < 0.8 || aspectRatio > 2.0) return false;
+        if (aspectRatio < 0.7 || aspectRatio > 2.5) {
+            console.log(`Rejected face: bad aspect ratio (${aspectRatio.toFixed(2)})`);
+            return false;
+        }
         
-        // Face should not be too small relative to image
+        // Face should not be too close to edges (faces are usually not at extreme edges)
+        const edgeMargin = Math.min(width, height) * 0.05; // 5% margin from edges
+        if (area.minX < edgeMargin || area.minY < edgeMargin || 
+            area.maxX > width - edgeMargin || area.maxY > height - edgeMargin) {
+            console.log(`Rejected face: too close to edges`);
+            return false;
+        }
+        
+        // Face should have reasonable density (enough skin pixels)
         const faceArea = faceWidth * faceHeight;
-        const imageArea = width * height;
-        if (faceArea < imageArea * 0.01) return false; // At least 1% of image
+        const skinPixelDensity = area.pixels.length / faceArea;
+        if (skinPixelDensity < 0.1) { // At least 10% skin pixels in the bounding box
+            console.log(`Rejected face: low skin density (${skinPixelDensity.toFixed(2)})`);
+            return false;
+        }
         
+        console.log(`Validated face: ${faceWidth}x${faceHeight}, aspect: ${aspectRatio.toFixed(2)}, density: ${skinPixelDensity.toFixed(2)}`);
         return true;
     }
 

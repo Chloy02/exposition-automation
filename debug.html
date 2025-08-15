@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>Face Detection Debug</title>
+    <script src="./simpleFaceDetection.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         .container { max-width: 800px; margin: 0 auto; }
@@ -86,29 +87,38 @@
                 
                 const testImage = canvas.toDataURL();
                 
-                // Test face detection
+                // Test simple face detection
                 const img = new Image();
                 img.onload = async () => {
                     try {
-                        const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions());
+                        statusDiv.textContent = 'Testing simple face detection...';
+                        statusDiv.className = 'status';
                         
-                        if (detections.length > 0) {
-                            statusDiv.textContent = `Face detection successful! Found ${detections.length} face(s).`;
+                        // Create simple face detector instance
+                        const detector = new SimpleFaceDetector();
+                        await detector.init();
+                        
+                        const faces = await detector.detectFaces(img);
+                        
+                        if (faces.length > 0) {
+                            statusDiv.textContent = `Simple face detection successful! Found ${faces.length} face(s).`;
                             statusDiv.className = 'status success';
                             
                             // Extract and display faces
-                            const faceCanvases = await faceapi.extractFaces(img, detections);
+                            const croppedFaces = await detector.cropFaces(img, faces);
                             facesDiv.innerHTML = '';
                             
-                            faceCanvases.forEach((canvas, index) => {
+                            croppedFaces.forEach((dataUrl, index) => {
                                 const faceImg = document.createElement('img');
-                                faceImg.src = canvas.toDataURL();
+                                faceImg.src = dataUrl;
                                 faceImg.alt = `Face ${index + 1}`;
+                                faceImg.style.margin = '5px';
+                                faceImg.style.border = '1px solid #ccc';
                                 facesDiv.appendChild(faceImg);
                             });
                         } else {
                             statusDiv.textContent = 'No faces detected in test image.';
-                            statusDiv.className = 'status';
+                            statusDiv.className = 'status error';
                         }
                     } catch (error) {
                         statusDiv.textContent = 'Face detection failed: ' + error.message;
