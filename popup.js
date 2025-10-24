@@ -200,9 +200,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const originalImagesContainer = row.querySelector(".original-images");
     if (emailData.images && emailData.images.length > 0) {
-      emailData.images.forEach((dataUrl) => {
+      emailData.images.forEach((dataUrl, index) => {
         const img = document.createElement("img");
         img.src = dataUrl;
+        img.draggable = true;
+        img.title = `Drag to drop this original image (Image ${index + 1})`;
+
+        // Enable drag-and-drop functionality for original images too
+        img.addEventListener("dragstart", (e) => {
+          e.dataTransfer.effectAllowed = "copy";
+          e.dataTransfer.setData("text/uri-list", dataUrl);
+          e.dataTransfer.setData("text/plain", dataUrl);
+          console.log(`Started dragging original image ${index + 1}`);
+        });
+
         originalImagesContainer.appendChild(img);
       });
     } else {
@@ -211,9 +222,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const croppedFacesContainer = row.querySelector(".cropped-faces");
     if (emailData.croppedFaces && emailData.croppedFaces.length > 0) {
-      emailData.croppedFaces.forEach((faceDataUrl) => {
+      emailData.croppedFaces.forEach((faceDataUrl, index) => {
         const img = document.createElement("img");
         img.src = faceDataUrl;
+        img.draggable = true;
+        img.title = `Drag to drop this cropped face (Face ${index + 1})`;
+
+        // Enable drag-and-drop functionality
+        img.addEventListener("dragstart", (e) => {
+          e.dataTransfer.effectAllowed = "copy";
+          e.dataTransfer.setData("text/uri-list", faceDataUrl);
+          e.dataTransfer.setData("text/plain", faceDataUrl);
+          console.log(`Started dragging face ${index + 1}`);
+        });
+
         croppedFacesContainer.appendChild(img);
       });
     } else {
