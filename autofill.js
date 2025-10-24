@@ -128,20 +128,40 @@ async function fillForm(data) {
       console.warn("Time input not found:", error.message);
     }
 
-    // --- Handle the File Upload ---
+    // --- Handle the File Upload - Upload ALL cropped faces ---
     try {
-      const fileInput = await waitForElement('input[type="file"]');
+      const fileInput = await waitForElement(
+        'input[type="file"], input[id="image-upload"], input[id*="upload" i]',
+      );
       if (fileInput && data.croppedFaces && data.croppedFaces.length > 0) {
-        const firstFaceUrl = data.croppedFaces[0];
-        const file = dataURLtoFile(firstFaceUrl, "face.png");
+        console.log(`Uploading ${data.croppedFaces.length} cropped face(s)...`);
 
         const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(file);
+
+        // Add ALL cropped faces to the file input
+        data.croppedFaces.forEach((faceDataUrl, index) => {
+          try {
+            const file = dataURLtoFile(faceDataUrl, `face-${index + 1}.jpg`);
+            dataTransfer.items.add(file);
+            console.log(
+              `Added face ${index + 1}: ${file.name} (${Math.round(file.size / 1024)}KB)`,
+            );
+          } catch (error) {
+            console.error(`Failed to add face ${index + 1}:`, error);
+          }
+        });
+
         fileInput.files = dataTransfer.files;
 
+        // Trigger React events
+        fileInput.focus();
         fileInput.dispatchEvent(new Event("change", { bubbles: true }));
         fileInput.dispatchEvent(new Event("input", { bubbles: true }));
-        console.log("File uploaded:", file.name);
+        fileInput.dispatchEvent(new Event("blur", { bubbles: true }));
+
+        console.log(
+          `✅ Successfully uploaded ${dataTransfer.files.length} face(s)`,
+        );
       }
     } catch (error) {
       console.warn("File input not found:", error.message);

@@ -319,6 +319,19 @@ document.addEventListener("DOMContentLoaded", () => {
 function autofillForm(emailData) {
   console.log("Starting autofill with data:", emailData);
 
+  // Convert Data URI to File object
+  function dataURLtoFile(dataurl, filename) {
+    const arr = dataurl.split(",");
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+  }
+
   // Wait for React components to load
   function waitForElement(selector, timeout = 10000) {
     return new Promise((resolve, reject) => {
@@ -518,40 +531,73 @@ function autofillForm(emailData) {
         console.warn("Time field not found or no time data");
       }
 
-      // Handle image upload area
+      // Handle image upload area - Upload ALL cropped faces
       console.log("Looking for image upload area...");
       const uploadSelectors = [
+        'input[id="image-upload"]',
         'input[type="file"]',
+        'input[id*="upload" i]',
         '[class*="upload" i]',
-        '[id*="upload" i]',
         '[data-testid*="upload" i]',
       ];
 
-      let uploadElement = null;
+      let fileInput = null;
       for (const selector of uploadSelectors) {
         try {
-          uploadElement = await waitForElement(selector, 2000);
-          console.log(`Found upload element with selector: ${selector}`);
+          fileInput = await waitForElement(selector, 2000);
+          console.log(`Found file input with selector: ${selector}`);
           break;
         } catch (e) {
           console.log(`Upload selector failed: ${selector}`);
         }
       }
 
-      if (uploadElement && emailData.images && emailData.images.length > 0) {
-        console.log(
-          "Found upload area with",
-          emailData.images.length,
-          "images available",
-        );
-        console.log(
-          "Note: Automatic file upload from data URLs requires manual implementation",
-        );
-        console.log(
-          "Consider implementing drag-drop functionality or manual file selection",
-        );
+      if (
+        fileInput &&
+        emailData.croppedFaces &&
+        emailData.croppedFaces.length > 0
+      ) {
+        try {
+          console.log(
+            `Uploading ${emailData.croppedFaces.length} cropped face(s)...`,
+          );
+
+          const dataTransfer = new DataTransfer();
+
+          // Add ALL cropped faces to the file input
+          emailData.croppedFaces.forEach((faceDataUrl, index) => {
+            try {
+              const file = dataURLtoFile(faceDataUrl, `face-${index + 1}.jpg`);
+              dataTransfer.items.add(file);
+              console.log(
+                `Added face ${index + 1}: ${file.name} (${Math.round(file.size / 1024)}KB)`,
+              );
+            } catch (error) {
+              console.error(`Failed to add face ${index + 1}:`, error);
+            }
+          });
+
+          // Set files to input
+          fileInput.files = dataTransfer.files;
+
+          // Trigger React events - multiple approaches for compatibility
+          fileInput.focus();
+          fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+          fileInput.dispatchEvent(new Event("input", { bubbles: true }));
+          fileInput.dispatchEvent(new Event("blur", { bubbles: true }));
+
+          console.log(
+            `✅ Successfully uploaded ${dataTransfer.files.length} face(s) to file input`,
+          );
+        } catch (error) {
+          console.error("Error uploading files:", error);
+        }
       } else {
-        console.warn("Upload area not found or no image data available");
+        console.warn("File input not found or no cropped faces available");
+        console.log("Available data:", {
+          fileInput: !!fileInput,
+          croppedFaces: emailData.croppedFaces?.length || 0,
+        });
       }
 
       console.log("Autofill completed successfully");
