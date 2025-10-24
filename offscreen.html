@@ -1,9 +1,20 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <script src="./simpleFaceDetection.js"></script>
-    <script src="./offscreen.js"></script>
-  </head>
-</html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Face Detection Offscreen Worker</title>
+        <!-- Load tracking.js library for face detection from local files -->
+        <script src="./lib/tracking.js"></script>
+        <script src="./lib/face.js"></script>
 
+        <!-- Load our custom face detection implementation -->
+        <script src="./trackingFaceDetection.js"></script>
+
+        <!-- Load the offscreen worker script -->
+        <script src="./offscreen.js"></script>
+    </head>
+    <body>
+        <!-- Offscreen document for face detection processing -->
+        <h1 style="display: none">Face Detection Worker</h1>
+    </body>
+</html>
