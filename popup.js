@@ -368,13 +368,19 @@ function autofillForm(emailData) {
     );
   }
 
-  // Function to format date for mm/dd/yyyy format
-  function formatDate(dateString) {
+  // Function to format date - returns YYYY-MM-DD for type="date" or MM/DD/YYYY for text inputs
+  function formatDate(dateString, inputType = "date") {
     try {
       const date = new Date(dateString);
       const month = String(date.getMonth() + 1).padStart(2, "0");
       const day = String(date.getDate()).padStart(2, "0");
       const year = date.getFullYear();
+
+      // HTML5 date inputs require YYYY-MM-DD format
+      if (inputType === "date") {
+        return `${year}-${month}-${day}`;
+      }
+      // Text inputs use MM/DD/YYYY format
       return `${month}/${day}/${year}`;
     } catch (error) {
       console.error("Date formatting error:", error);
@@ -382,6 +388,10 @@ function autofillForm(emailData) {
       const month = String(today.getMonth() + 1).padStart(2, "0");
       const day = String(today.getDate()).padStart(2, "0");
       const year = today.getFullYear();
+
+      if (inputType === "date") {
+        return `${year}-${month}-${day}`;
+      }
       return `${month}/${day}/${year}`;
     }
   }
@@ -469,11 +479,14 @@ function autofillForm(emailData) {
       }
 
       if (dateField && emailData.date) {
-        const formattedDate = formatDate(emailData.date);
+        // Detect input type and format accordingly
+        const inputType = dateField.getAttribute("type") || "text";
+        const formattedDate = formatDate(emailData.date, inputType);
         simulateInput(dateField, formattedDate);
-        console.log("Date filled:", formattedDate);
+        console.log(`Date filled (type=${inputType}):`, formattedDate);
       } else {
         console.warn("Date field not found or no date data");
+        console.log("Available date data:", emailData.date);
       }
 
       // Fill time field - try multiple selectors
