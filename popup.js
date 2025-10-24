@@ -319,6 +319,19 @@ document.addEventListener("DOMContentLoaded", () => {
 function autofillForm(emailData) {
   console.log("Starting autofill with data:", emailData);
 
+  // Convert Data URI to File object
+  function dataURLtoFile(dataurl, filename) {
+    const arr = dataurl.split(",");
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+  }
+
   // Wait for React components to load
   function waitForElement(selector, timeout = 10000) {
     return new Promise((resolve, reject) => {
@@ -396,27 +409,41 @@ function autofillForm(emailData) {
     }
   }
 
-  // Function to format time for --:-- format
-  function formatTime(dateString) {
+  // Function to format time - returns HH:MM for type="time" or hh:mm AM/PM for text inputs
+  function formatTime(dateString, inputType = "time") {
     try {
       const date = new Date(dateString);
-      let hours = date.getHours();
+      const hours24 = date.getHours();
       const minutes = String(date.getMinutes()).padStart(2, "0");
-      const ampm = hours >= 12 ? "PM" : "AM";
-      hours = hours % 12;
-      hours = hours ? hours : 12; // the hour '0' should be '12'
-      const formattedHours = String(hours).padStart(2, "0");
-      return `${formattedHours}:${minutes} ${ampm}`;
+
+      // HTML5 time inputs require HH:MM in 24-hour format
+      if (inputType === "time") {
+        const formattedHours24 = String(hours24).padStart(2, "0");
+        return `${formattedHours24}:${minutes}`;
+      }
+
+      // Text inputs use 12-hour format with AM/PM
+      const ampm = hours24 >= 12 ? "PM" : "AM";
+      let hours12 = hours24 % 12;
+      hours12 = hours12 ? hours12 : 12; // the hour '0' should be '12'
+      const formattedHours12 = String(hours12).padStart(2, "0");
+      return `${formattedHours12}:${minutes} ${ampm}`;
     } catch (error) {
       console.error("Time formatting error:", error);
       const now = new Date();
-      let hours = now.getHours();
+      const hours24 = now.getHours();
       const minutes = String(now.getMinutes()).padStart(2, "0");
-      const ampm = hours >= 12 ? "PM" : "AM";
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      const formattedHours = String(hours).padStart(2, "0");
-      return `${formattedHours}:${minutes} ${ampm}`;
+
+      if (inputType === "time") {
+        const formattedHours24 = String(hours24).padStart(2, "0");
+        return `${formattedHours24}:${minutes}`;
+      }
+
+      const ampm = hours24 >= 12 ? "PM" : "AM";
+      let hours12 = hours24 % 12;
+      hours12 = hours12 ? hours12 : 12;
+      const formattedHours12 = String(hours12).padStart(2, "0");
+      return `${formattedHours12}:${minutes} ${ampm}`;
     }
   }
 
@@ -492,11 +519,12 @@ function autofillForm(emailData) {
       // Fill time field - try multiple selectors
       console.log("Looking for time field...");
       const timeSelectors = [
-        'input[placeholder*="--:--"]',
+        'input[id="time"]',
         'input[type="time"]',
+        'input[id*="time" i]',
+        'input[placeholder*="--:--"]',
         'input[placeholder*="time" i]',
         'input[name*="time" i]',
-        'input[id*="time" i]',
       ];
 
       let timeField = null;
@@ -511,47 +539,83 @@ function autofillForm(emailData) {
       }
 
       if (timeField && emailData.date) {
-        const formattedTime = formatTime(emailData.date);
+        // Detect input type and format accordingly
+        const inputType = timeField.getAttribute("type") || "text";
+        const formattedTime = formatTime(emailData.date, inputType);
         simulateInput(timeField, formattedTime);
-        console.log("Time filled:", formattedTime);
+        console.log(`Time filled (type=${inputType}):`, formattedTime);
       } else {
         console.warn("Time field not found or no time data");
+        console.log("Available date data:", emailData.date);
       }
 
-      // Handle image upload area
+      // Handle image upload area - Upload ALL cropped faces
       console.log("Looking for image upload area...");
       const uploadSelectors = [
+        'input[id="image-upload"]',
         'input[type="file"]',
+        'input[id*="upload" i]',
         '[class*="upload" i]',
-        '[id*="upload" i]',
         '[data-testid*="upload" i]',
       ];
 
-      let uploadElement = null;
+      let fileInput = null;
       for (const selector of uploadSelectors) {
         try {
-          uploadElement = await waitForElement(selector, 2000);
-          console.log(`Found upload element with selector: ${selector}`);
+          fileInput = await waitForElement(selector, 2000);
+          console.log(`Found file input with selector: ${selector}`);
           break;
         } catch (e) {
           console.log(`Upload selector failed: ${selector}`);
         }
       }
 
-      if (uploadElement && emailData.images && emailData.images.length > 0) {
-        console.log(
-          "Found upload area with",
-          emailData.images.length,
-          "images available",
-        );
-        console.log(
-          "Note: Automatic file upload from data URLs requires manual implementation",
-        );
-        console.log(
-          "Consider implementing drag-drop functionality or manual file selection",
-        );
+      if (
+        fileInput &&
+        emailData.croppedFaces &&
+        emailData.croppedFaces.length > 0
+      ) {
+        try {
+          console.log(
+            `Uploading ${emailData.croppedFaces.length} cropped face(s)...`,
+          );
+
+          const dataTransfer = new DataTransfer();
+
+          // Add ALL cropped faces to the file input
+          emailData.croppedFaces.forEach((faceDataUrl, index) => {
+            try {
+              const file = dataURLtoFile(faceDataUrl, `face-${index + 1}.jpg`);
+              dataTransfer.items.add(file);
+              console.log(
+                `Added face ${index + 1}: ${file.name} (${Math.round(file.size / 1024)}KB)`,
+              );
+            } catch (error) {
+              console.error(`Failed to add face ${index + 1}:`, error);
+            }
+          });
+
+          // Set files to input
+          fileInput.files = dataTransfer.files;
+
+          // Trigger React events - multiple approaches for compatibility
+          fileInput.focus();
+          fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+          fileInput.dispatchEvent(new Event("input", { bubbles: true }));
+          fileInput.dispatchEvent(new Event("blur", { bubbles: true }));
+
+          console.log(
+            `✅ Successfully uploaded ${dataTransfer.files.length} face(s) to file input`,
+          );
+        } catch (error) {
+          console.error("Error uploading files:", error);
+        }
       } else {
-        console.warn("Upload area not found or no image data available");
+        console.warn("File input not found or no cropped faces available");
+        console.log("Available data:", {
+          fileInput: !!fileInput,
+          croppedFaces: emailData.croppedFaces?.length || 0,
+        });
       }
 
       console.log("Autofill completed successfully");
