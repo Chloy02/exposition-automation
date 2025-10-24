@@ -409,27 +409,41 @@ function autofillForm(emailData) {
     }
   }
 
-  // Function to format time for --:-- format
-  function formatTime(dateString) {
+  // Function to format time - returns HH:MM for type="time" or hh:mm AM/PM for text inputs
+  function formatTime(dateString, inputType = "time") {
     try {
       const date = new Date(dateString);
-      let hours = date.getHours();
+      const hours24 = date.getHours();
       const minutes = String(date.getMinutes()).padStart(2, "0");
-      const ampm = hours >= 12 ? "PM" : "AM";
-      hours = hours % 12;
-      hours = hours ? hours : 12; // the hour '0' should be '12'
-      const formattedHours = String(hours).padStart(2, "0");
-      return `${formattedHours}:${minutes} ${ampm}`;
+
+      // HTML5 time inputs require HH:MM in 24-hour format
+      if (inputType === "time") {
+        const formattedHours24 = String(hours24).padStart(2, "0");
+        return `${formattedHours24}:${minutes}`;
+      }
+
+      // Text inputs use 12-hour format with AM/PM
+      const ampm = hours24 >= 12 ? "PM" : "AM";
+      let hours12 = hours24 % 12;
+      hours12 = hours12 ? hours12 : 12; // the hour '0' should be '12'
+      const formattedHours12 = String(hours12).padStart(2, "0");
+      return `${formattedHours12}:${minutes} ${ampm}`;
     } catch (error) {
       console.error("Time formatting error:", error);
       const now = new Date();
-      let hours = now.getHours();
+      const hours24 = now.getHours();
       const minutes = String(now.getMinutes()).padStart(2, "0");
-      const ampm = hours >= 12 ? "PM" : "AM";
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      const formattedHours = String(hours).padStart(2, "0");
-      return `${formattedHours}:${minutes} ${ampm}`;
+
+      if (inputType === "time") {
+        const formattedHours24 = String(hours24).padStart(2, "0");
+        return `${formattedHours24}:${minutes}`;
+      }
+
+      const ampm = hours24 >= 12 ? "PM" : "AM";
+      let hours12 = hours24 % 12;
+      hours12 = hours12 ? hours12 : 12;
+      const formattedHours12 = String(hours12).padStart(2, "0");
+      return `${formattedHours12}:${minutes} ${ampm}`;
     }
   }
 
@@ -505,11 +519,12 @@ function autofillForm(emailData) {
       // Fill time field - try multiple selectors
       console.log("Looking for time field...");
       const timeSelectors = [
-        'input[placeholder*="--:--"]',
+        'input[id="time"]',
         'input[type="time"]',
+        'input[id*="time" i]',
+        'input[placeholder*="--:--"]',
         'input[placeholder*="time" i]',
         'input[name*="time" i]',
-        'input[id*="time" i]',
       ];
 
       let timeField = null;
@@ -524,11 +539,14 @@ function autofillForm(emailData) {
       }
 
       if (timeField && emailData.date) {
-        const formattedTime = formatTime(emailData.date);
+        // Detect input type and format accordingly
+        const inputType = timeField.getAttribute("type") || "text";
+        const formattedTime = formatTime(emailData.date, inputType);
         simulateInput(timeField, formattedTime);
-        console.log("Time filled:", formattedTime);
+        console.log(`Time filled (type=${inputType}):`, formattedTime);
       } else {
         console.warn("Time field not found or no time data");
+        console.log("Available date data:", emailData.date);
       }
 
       // Handle image upload area - Upload ALL cropped faces
