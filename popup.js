@@ -1,12 +1,21 @@
-// popup.js (Updated for storage-based autofill)
+// popup.js (Updated to use IndexedDB for higher storage capacity)
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const extractBtn = document.getElementById("extractBtn");
   const debugBtn = document.getElementById("debugBtn");
   const testModelsBtn = document.getElementById("testModelsBtn");
   const clearBtn = document.getElementById("clearBtn");
   const statusDiv = document.getElementById("status");
   const resultsTableBody = document.querySelector("#resultsTable tbody");
+
+  // Initialize IndexedDB
+  try {
+    await dbHelper.init();
+    console.log("✅ IndexedDB initialized");
+  } catch (error) {
+    console.error("❌ Failed to initialize IndexedDB:", error);
+    statusDiv.textContent = "Error: Failed to initialize database";
+  }
 
   loadAndRenderData();
 
@@ -93,11 +102,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  clearBtn.addEventListener("click", () => {
-    chrome.storage.local.set({ emails: [] }, () => {
+  clearBtn.addEventListener("click", async () => {
+    try {
+      await dbHelper.clearAllEmails();
       resultsTableBody.innerHTML = "";
-      statusDiv.textContent = "Stored data has been cleared.";
-    });
+      statusDiv.textContent = "✅ Stored data has been cleared.";
+      console.log("✅ All emails cleared from IndexedDB");
+    } catch (error) {
+      console.error("❌ Error clearing data:", error);
+      statusDiv.textContent = "❌ Error: Failed to clear data";
+    }
   });
 
   function handleExtractionResult(extractedData) {
@@ -106,79 +120,94 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function saveAndProcessData(newData) {
-    const data = await chrome.storage.local.get({ emails: [] });
-    let emails = data.emails || [];
+    try {
+      // Initialize cropped faces array
+      newData.croppedFaces = [];
 
-    newData.croppedFaces = [];
-    const existingEmailIndex = emails.findIndex((e) => e.id === newData.id);
-    if (existingEmailIndex > -1) {
-      emails[existingEmailIndex] = newData;
-    } else {
-      emails.push(newData);
-    }
+      // Save to IndexedDB (will update if exists, or insert if new)
+      await dbHelper.saveEmail(newData);
+      console.log("✅ Email saved to IndexedDB:", newData.id);
 
-    await chrome.storage.local.set({ emails });
-    loadAndRenderData();
+      // Reload and render the table
+      await loadAndRenderData();
 
-    if (newData.images && newData.images.length > 0) {
-      statusDiv.textContent =
-        "Detecting faces using Haar Cascade... (this may take a moment)";
-      try {
-        const response = await chrome.runtime.sendMessage({
-          action: "processImages",
-          imageDataUrls: newData.images,
-        });
-
-        if (response.success) {
-          const emailIndex = emails.findIndex((e) => e.id === newData.id);
-          if (emailIndex > -1) {
-            emails[emailIndex].croppedFaces = response.croppedFaces;
-          }
-
-          // Check if any faces were found
-          if (response.croppedFaces.length > 0) {
-            statusDiv.textContent = `✅ Processing complete. Found ${response.croppedFaces.length} face(s).`;
-          } else {
-            statusDiv.textContent =
-              "⚠️ No faces detected in the images. Please check if images contain visible faces.";
-            statusDiv.style.color = "#ff6b00"; // Orange warning color
-            setTimeout(() => {
-              statusDiv.style.color = ""; // Reset color after 5 seconds
-            }, 5000);
-          }
-        } else {
-          throw new Error(
-            response.error || "Unknown error in background script.",
-          );
-        }
-      } catch (error) {
-        console.error("Face detection failed:", error);
+      if (newData.images && newData.images.length > 0) {
         statusDiv.textContent =
-          "❌ Error: Face detection failed. Check background logs.";
-        statusDiv.style.color = "#d32f2f"; // Red error color
-        setTimeout(() => {
-          statusDiv.style.color = ""; // Reset color after 5 seconds
-        }, 5000);
-      }
+          "Detecting faces using Haar Cascade... (this may take a moment)";
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: "processImages",
+            imageDataUrls: newData.images,
+          });
 
-      await chrome.storage.local.set({ emails });
-      loadAndRenderData();
-    } else {
-      statusDiv.textContent = "Extraction complete. No images to process.";
+          if (response.success) {
+            // Update the email with cropped faces
+            await dbHelper.updateEmail(newData.id, {
+              croppedFaces: response.croppedFaces,
+            });
+
+            // Check if any faces were found
+            if (response.croppedFaces.length > 0) {
+              statusDiv.textContent = `✅ Processing complete. Found ${response.croppedFaces.length} face(s).`;
+            } else {
+              statusDiv.textContent =
+                "⚠️ No faces detected in the images. Please check if images contain visible faces.";
+              statusDiv.style.color = "#ff6b00"; // Orange warning color
+              setTimeout(() => {
+                statusDiv.style.color = ""; // Reset color after 5 seconds
+              }, 5000);
+            }
+          } else {
+            throw new Error(
+              response.error || "Unknown error in background script.",
+            );
+          }
+        } catch (error) {
+          console.error("Face detection failed:", error);
+          statusDiv.textContent =
+            "❌ Error: Face detection failed. Check background logs.";
+          statusDiv.style.color = "#d32f2f"; // Red error color
+          setTimeout(() => {
+            statusDiv.style.color = ""; // Reset color after 5 seconds
+          }, 5000);
+        }
+
+        // Reload the table with updated data
+        await loadAndRenderData();
+      } else {
+        statusDiv.textContent = "Extraction complete. No images to process.";
+      }
+    } catch (error) {
+      console.error("❌ Error saving email:", error);
+      statusDiv.textContent = "❌ Error: Failed to save email data";
     }
   }
 
-  function loadAndRenderData() {
-    chrome.storage.local.get({ emails: [] }, (data) => {
+  async function loadAndRenderData() {
+    try {
       resultsTableBody.innerHTML = "";
-      const emails = data.emails || [];
+      const emails = await dbHelper.getAllEmails();
+
       if (emails.length > 0) {
+        // Sort by date (newest first)
+        emails.sort((a, b) => new Date(b.date) - new Date(a.date));
         emails.forEach((email) => addRowToTable(email));
         statusDiv.textContent = `Loaded ${emails.length} stored entries.`;
+
+        // Show storage estimate
+        const storageInfo = await dbHelper.getStorageEstimate();
+        if (storageInfo) {
+          console.log(
+            `📊 Storage: ${storageInfo.usageInMB}MB / ${storageInfo.quotaInMB}MB`,
+          );
+        }
       } else {
         statusDiv.textContent = "Ready to extract an email.";
       }
-    });
+    } catch (error) {
+      console.error("❌ Error loading emails:", error);
+      statusDiv.textContent = "Error loading stored data";
+    }
   }
 
   function addRowToTable(emailData) {
@@ -248,8 +277,7 @@ document.addEventListener("DOMContentLoaded", () => {
   resultsTableBody.addEventListener("click", async (event) => {
     if (event.target && event.target.classList.contains("fill-form-btn")) {
       const emailId = event.target.dataset.emailId;
-      const { emails } = await chrome.storage.local.get("emails");
-      const emailData = emails.find((e) => e.id === emailId);
+      const emailData = await dbHelper.getEmail(emailId);
 
       if (emailData) {
         // Check if we're currently on the target website

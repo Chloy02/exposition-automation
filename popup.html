@@ -1,45 +1,53 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exposition Email Automator</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="header">
-        <h1>Exposition Automator</h1>
-        <p>Extracts email data and images from Gmail.</p>
-    </div>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Exposition Email Automator</title>
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <div class="header">
+            <h1>Exposition Automator</h1>
+            <p>Extracts email data and images from Gmail.</p>
+        </div>
 
-    <div class="actions">
-        <button id="extractBtn" class="button-primary">Extract Emails from Current Page</button>
-        <button id="debugBtn" class="button-secondary">Debug Attachments</button>
-        <button id="testModelsBtn" class="button-secondary">Test Face Models</button>
-        <button id="clearBtn" class="button-secondary">Clear Stored Data</button>
-    </div>
+        <div class="actions">
+            <button id="extractBtn" class="button-primary">
+                Extract Emails from Current Page
+            </button>
+            <button id="debugBtn" class="button-secondary">
+                Debug Attachments
+            </button>
+            <button id="testModelsBtn" class="button-secondary">
+                Test Face Models
+            </button>
+            <button id="clearBtn" class="button-secondary">
+                Clear Stored Data
+            </button>
+        </div>
 
-    <div id="status"></div>
+        <div id="status"></div>
 
-    <div class="results-container">
-        <table id="resultsTable">
-            <thead>
-                <tr>
-                    <th>Sender</th>
-                    <th>Date</th>
-                    <th>Subject</th>
-                    <th>Images</th>
-                    <th>Cropped Faces</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Data will be inserted here by JavaScript -->
-            </tbody>
-        </table>
-    </div>
+        <div class="results-container">
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Sender</th>
+                        <th>Date</th>
+                        <th>Subject</th>
+                        <th>Images</th>
+                        <th>Cropped Faces</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Data will be inserted here by JavaScript -->
+                </tbody>
+            </table>
+        </div>
 
-    <script src="popup.js"></script>
-</body>
+        <script src="dbHelper.js"></script>
+        <script src="popup.js"></script>
+    </body>
 </html>
-
