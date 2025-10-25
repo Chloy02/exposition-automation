@@ -121,12 +121,58 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function saveAndProcessData(newData) {
     try {
-      // Initialize cropped faces array
-      newData.croppedFaces = [];
+      // Check if email from this sender already exists
+      const allEmails = await dbHelper.getAllEmails();
+      const existingEmail = allEmails.find(
+        (email) => email.senderEmail === newData.senderEmail,
+      );
 
-      // Save to IndexedDB (will update if exists, or insert if new)
-      await dbHelper.saveEmail(newData);
-      console.log("✅ Email saved to IndexedDB:", newData.id);
+      let emailToProcess = newData;
+      let isNewEntry = true;
+
+      if (existingEmail) {
+        // Merge with existing entry
+        isNewEntry = false;
+        console.log(
+          `📧 Found existing entry for ${newData.senderEmail}, merging images...`,
+        );
+
+        // Check if new extraction has images
+        if (!newData.images || newData.images.length === 0) {
+          statusDiv.textContent = `⚠️ No new images to add for ${newData.senderEmail}`;
+          statusDiv.style.color = "#ff6b00";
+          setTimeout(() => {
+            statusDiv.style.color = "";
+          }, 3000);
+          return;
+        }
+
+        // Merge images (add new images to existing)
+        const mergedImages = [...existingEmail.images, ...newData.images];
+
+        // Update existing email with merged images
+        emailToProcess = {
+          ...existingEmail, // Keep all existing data (date, time, userEditedTime, etc.)
+          images: mergedImages,
+          croppedFaces: existingEmail.croppedFaces || [], // Keep existing cropped faces
+        };
+
+        // Save merged entry
+        await dbHelper.saveEmail(emailToProcess);
+        console.log(
+          `✅ Added ${newData.images.length} image(s) to existing entry for ${newData.senderEmail}`,
+        );
+
+        statusDiv.textContent = `Added ${newData.images.length} new image(s) to existing entry`;
+      } else {
+        // New entry - initialize cropped faces array
+        newData.croppedFaces = [];
+        emailToProcess = newData;
+
+        // Save new email to IndexedDB
+        await dbHelper.saveEmail(emailToProcess);
+        console.log("✅ New email saved to IndexedDB:", emailToProcess.id);
+      }
 
       // Reload and render the table
       await loadAndRenderData();
@@ -141,14 +187,27 @@ document.addEventListener("DOMContentLoaded", async () => {
           });
 
           if (response.success) {
-            // Update the email with cropped faces
-            await dbHelper.updateEmail(newData.id, {
-              croppedFaces: response.croppedFaces,
+            // Merge cropped faces (add new faces to existing)
+            const existingFaces = emailToProcess.croppedFaces || [];
+            const mergedCroppedFaces = [
+              ...existingFaces,
+              ...response.croppedFaces,
+            ];
+
+            // Update the email with merged cropped faces
+            await dbHelper.updateEmail(emailToProcess.id, {
+              croppedFaces: mergedCroppedFaces,
             });
 
             // Check if any faces were found
             if (response.croppedFaces.length > 0) {
-              statusDiv.textContent = `✅ Processing complete. Found ${response.croppedFaces.length} face(s).`;
+              const totalFaces = mergedCroppedFaces.length;
+              const newFaces = response.croppedFaces.length;
+              if (isNewEntry) {
+                statusDiv.textContent = `✅ Processing complete. Found ${newFaces} face(s).`;
+              } else {
+                statusDiv.textContent = `✅ Processing complete. Added ${newFaces} face(s). Total: ${totalFaces} face(s).`;
+              }
             } else {
               statusDiv.textContent =
                 "⚠️ No faces detected in the images. Please check if images contain visible faces.";
