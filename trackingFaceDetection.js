@@ -175,21 +175,24 @@ class TrackingFaceDetector {
     for (let i = 0; i < faces.length; i++) {
       const face = faces[i];
 
-      // Add generous padding around detected face (40%)
-      const paddingPercent = 0.4;
-      const paddingX = face.width * paddingPercent;
-      const paddingY = face.height * paddingPercent;
+      // Asymmetric padding to capture face + torso for clothing identification
+      // Top: 25% (minimal above head)
+      // Sides: 40% (shoulders)
+      // Bottom: 120% (upper torso and clothing)
+      const paddingTop = face.height * 0.25;
+      const paddingSides = face.width * 0.4;
+      const paddingBottom = face.height * 1.2;
 
-      // Calculate padded coordinates
-      let cropX = Math.max(0, face.x - paddingX);
-      let cropY = Math.max(0, face.y - paddingY);
+      // Calculate padded coordinates with asymmetric padding
+      let cropX = Math.max(0, face.x - paddingSides);
+      let cropY = Math.max(0, face.y - paddingTop);
       let cropWidth = Math.min(
         imageElement.width - cropX,
-        face.width + 2 * paddingX,
+        face.width + 2 * paddingSides,
       );
       let cropHeight = Math.min(
         imageElement.height - cropY,
-        face.height + 2 * paddingY,
+        face.height + paddingTop + paddingBottom,
       );
 
       // Ensure minimum crop size
@@ -229,7 +232,7 @@ class TrackingFaceDetector {
       croppedFaces.push(croppedDataUrl);
 
       console.log(
-        `✅ Cropped face ${i + 1}/${faces.length}: ${cropWidth}x${cropHeight} at (${cropX}, ${cropY})`,
+        `✅ Cropped face ${i + 1}/${faces.length}: ${cropWidth}x${cropHeight} at (${cropX}, ${cropY}) [Face + Torso]`,
       );
     }
 
