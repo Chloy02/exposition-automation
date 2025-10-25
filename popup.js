@@ -216,7 +216,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const date = emailData.date
       ? new Date(emailData.date).toLocaleDateString()
       : "N/A";
-    const subject = emailData.subject || "N/A";
 
     // Determine which time to display (priority: userEdited > adjusted > original)
     let displayTime = "N/A";
@@ -270,7 +269,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     row.innerHTML = `
             <td>${sender}</td>
             <td>${date}</td>
-            <td>${subject}</td>
             <td class="time-cell" data-email-id="${emailData.id}">
                 <span class="time-display" title="${timeTooltip}">${displayTime}</span>
                 <button class="edit-time-btn" title="Edit time">🖊️</button>

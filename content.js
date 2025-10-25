@@ -92,13 +92,11 @@ async function extractEmailData() {
 
   // --- Extract Metadata ---
   const senderElement = emailContainer.querySelector(".gD");
-  const subjectElement = emailContainer.querySelector(".hP");
   const dateElement = emailContainer.querySelector(".g3");
 
   const senderEmail = senderElement
     ? senderElement.getAttribute("email")
     : "N/A";
-  const subject = subjectElement ? subjectElement.innerText.trim() : "N/A";
   // Use the 'title' attribute for a more complete date string
   const date = dateElement
     ? dateElement.getAttribute("title")
@@ -268,14 +266,12 @@ async function extractEmailData() {
     date,
     adjustedTime, // Timestamp: received time - 25 minutes
     userEditedTime: null, // User can edit this later
-    subject,
     images: imageDataUrls, // This now contains Data URIs, not URLs
     id: `email_${Date.now()}`,
   };
 
   console.log("Email extraction completed:", {
     senderEmail,
-    subject,
     imageCount: imageDataUrls.length,
     id: result.id,
   });
