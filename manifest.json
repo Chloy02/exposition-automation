@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Exposition Email Automator",
-  "version": "2.4",
+  "version": "3.0",
   "description": "Extracts data and images from Gmail for exposition purposes with Haar Cascade face detection.",
   "permissions": ["storage", "activeTab", "scripting", "offscreen"],
   "host_permissions": [
