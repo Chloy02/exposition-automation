@@ -214,14 +214,70 @@ document.addEventListener("DOMContentLoaded", async () => {
     const row = document.createElement("tr");
     const sender = emailData.senderEmail || "N/A";
     const date = emailData.date
-      ? new Date(emailData.date).toLocaleString()
+      ? new Date(emailData.date).toLocaleDateString()
       : "N/A";
     const subject = emailData.subject || "N/A";
+
+    // Determine which time to display (priority: userEdited > adjusted > original)
+    let displayTime = "N/A";
+    let timeTooltip = "";
+    let timeValue = ""; // For the edit input
+
+    if (emailData.userEditedTime) {
+      const editedDate = new Date(emailData.userEditedTime);
+      displayTime = editedDate.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+      const hours = String(editedDate.getHours()).padStart(2, "0");
+      const minutes = String(editedDate.getMinutes()).padStart(2, "0");
+      timeValue = `${hours}:${minutes}`;
+      timeTooltip = "User edited time";
+    } else if (emailData.adjustedTime) {
+      const adjustedDate = new Date(emailData.adjustedTime);
+      displayTime = adjustedDate.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+      const hours = String(adjustedDate.getHours()).padStart(2, "0");
+      const minutes = String(adjustedDate.getMinutes()).padStart(2, "0");
+      timeValue = `${hours}:${minutes}`;
+
+      // Show original time in tooltip
+      if (emailData.date) {
+        const originalDate = new Date(emailData.date);
+        const originalTime = originalDate.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+        timeTooltip = `Adjusted from ${originalTime} (received time)`;
+      }
+    } else if (emailData.date) {
+      const originalDate = new Date(emailData.date);
+      displayTime = originalDate.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+      const hours = String(originalDate.getHours()).padStart(2, "0");
+      const minutes = String(originalDate.getMinutes()).padStart(2, "0");
+      timeValue = `${hours}:${minutes}`;
+    }
 
     row.innerHTML = `
             <td>${sender}</td>
             <td>${date}</td>
             <td>${subject}</td>
+            <td class="time-cell" data-email-id="${emailData.id}">
+                <span class="time-display" title="${timeTooltip}">${displayTime}</span>
+                <button class="edit-time-btn" title="Edit time">🖊️</button>
+                <input class="time-edit-input" type="time" value="${timeValue}" style="display:none;" />
+                <button class="save-time-btn" style="display:none;" title="Save">✅</button>
+                <button class="cancel-time-btn" style="display:none;" title="Cancel">❌</button>
+            </td>
             <td class="image-cell"><div class="image-container original-images"></div></td>
             <td class="image-cell"><div class="image-container cropped-faces"></div></td>
             <td><button class="button-primary fill-form-btn" data-email-id="${emailData.id}">Auto-fill</button></td>
@@ -271,6 +327,79 @@ document.addEventListener("DOMContentLoaded", async () => {
       croppedFacesContainer.textContent = "...";
     }
     resultsTableBody.prepend(row);
+
+    // Add event listeners for time editing
+    const timeCell = row.querySelector(".time-cell");
+    const editBtn = timeCell.querySelector(".edit-time-btn");
+    const timeDisplay = timeCell.querySelector(".time-display");
+    const timeInput = timeCell.querySelector(".time-edit-input");
+    const saveBtn = timeCell.querySelector(".save-time-btn");
+    const cancelBtn = timeCell.querySelector(".cancel-time-btn");
+
+    editBtn.addEventListener("click", () => {
+      timeDisplay.style.display = "none";
+      editBtn.style.display = "none";
+      timeInput.style.display = "inline-block";
+      saveBtn.style.display = "inline-block";
+      cancelBtn.style.display = "inline-block";
+      timeInput.focus();
+    });
+
+    cancelBtn.addEventListener("click", () => {
+      timeDisplay.style.display = "inline";
+      editBtn.style.display = "inline";
+      timeInput.style.display = "none";
+      saveBtn.style.display = "none";
+      cancelBtn.style.display = "none";
+    });
+
+    saveBtn.addEventListener("click", async () => {
+      const newTimeValue = timeInput.value;
+      if (!newTimeValue) {
+        alert("Please enter a valid time");
+        return;
+      }
+
+      try {
+        // Parse the time input (HH:MM format)
+        const [hours, minutes] = newTimeValue.split(":").map(Number);
+
+        // Use the email's date but with new time
+        const baseDate = emailData.date ? new Date(emailData.date) : new Date();
+        baseDate.setHours(hours, minutes, 0, 0);
+
+        const userEditedTime = baseDate.getTime();
+
+        // Update the email in IndexedDB
+        await dbHelper.updateEmail(emailData.id, { userEditedTime });
+
+        // Update display
+        const newDisplayTime = baseDate.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+        timeDisplay.textContent = newDisplayTime;
+        timeDisplay.title = "User edited time";
+
+        // Hide edit controls
+        timeDisplay.style.display = "inline";
+        editBtn.style.display = "inline";
+        timeInput.style.display = "none";
+        saveBtn.style.display = "none";
+        cancelBtn.style.display = "none";
+
+        console.log(`✅ Time updated for ${emailData.id}: ${newDisplayTime}`);
+        statusDiv.textContent = "✅ Time updated successfully!";
+        setTimeout(async () => {
+          const emails = await dbHelper.getAllEmails();
+          statusDiv.textContent = `Loaded ${emails.length} stored entries.`;
+        }, 2000);
+      } catch (error) {
+        console.error("❌ Error saving time:", error);
+        alert("Failed to save time. Please try again.");
+      }
+    });
   }
 
   // Use a single event listener on the table body for all auto-fill buttons
@@ -566,15 +695,36 @@ function autofillForm(emailData) {
         }
       }
 
-      if (timeField && emailData.date) {
-        // Detect input type and format accordingly
-        const inputType = timeField.getAttribute("type") || "text";
-        const formattedTime = formatTime(emailData.date, inputType);
-        simulateInput(timeField, formattedTime);
-        console.log(`Time filled (type=${inputType}):`, formattedTime);
+      if (timeField) {
+        // Determine which time to use (priority: userEdited > adjusted > original)
+        let timeToUse = null;
+        let timeSource = "";
+
+        if (emailData.userEditedTime) {
+          timeToUse = emailData.userEditedTime;
+          timeSource = "user-edited";
+        } else if (emailData.adjustedTime) {
+          timeToUse = emailData.adjustedTime;
+          timeSource = "adjusted (-25min)";
+        } else if (emailData.date) {
+          timeToUse = new Date(emailData.date).getTime();
+          timeSource = "original";
+        }
+
+        if (timeToUse) {
+          // Detect input type and format accordingly
+          const inputType = timeField.getAttribute("type") || "text";
+          const formattedTime = formatTime(timeToUse, inputType);
+          simulateInput(timeField, formattedTime);
+          console.log(
+            `Time filled (type=${inputType}, source=${timeSource}):`,
+            formattedTime,
+          );
+        } else {
+          console.warn("No time data available");
+        }
       } else {
-        console.warn("Time field not found or no time data");
-        console.log("Available date data:", emailData.date);
+        console.warn("Time field not found");
       }
 
       // Handle image upload area - Upload ALL cropped faces

@@ -114,24 +114,46 @@ async function fillForm(data) {
       const timeInput = await waitForElement(
         'input[id="time"], input[type="time"], input[id*="time" i], input[placeholder*="--:--"], input[placeholder*="time" i]',
       );
-      if (timeInput && data.date) {
-        const date = new Date(data.date);
-        const hours24 = date.getHours();
-        const minutes = String(date.getMinutes()).padStart(2, "0");
+      if (timeInput) {
+        // Determine which time to use (priority: userEdited > adjusted > original)
+        let timeToUse = null;
+        let timeSource = "";
 
-        // HTML5 time inputs (type="time") require HH:MM in 24-hour format
-        const inputType = timeInput.getAttribute("type") || "text";
-        const timeValue =
-          inputType === "time"
-            ? `${String(hours24).padStart(2, "0")}:${minutes}` // 24-hour format for type="time"
-            : date.toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-              }); // 12-hour format for text inputs
+        if (data.userEditedTime) {
+          timeToUse = data.userEditedTime;
+          timeSource = "user-edited";
+        } else if (data.adjustedTime) {
+          timeToUse = data.adjustedTime;
+          timeSource = "adjusted (-25min)";
+        } else if (data.date) {
+          timeToUse = new Date(data.date).getTime();
+          timeSource = "original";
+        }
 
-        setReactInputValue(timeInput, timeValue);
-        console.log(`Time filled (type=${inputType}):`, timeValue);
+        if (timeToUse) {
+          const date = new Date(timeToUse);
+          const hours24 = date.getHours();
+          const minutes = String(date.getMinutes()).padStart(2, "0");
+
+          // HTML5 time inputs (type="time") require HH:MM in 24-hour format
+          const inputType = timeInput.getAttribute("type") || "text";
+          const timeValue =
+            inputType === "time"
+              ? `${String(hours24).padStart(2, "0")}:${minutes}` // 24-hour format for type="time"
+              : date.toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                }); // 12-hour format for text inputs
+
+          setReactInputValue(timeInput, timeValue);
+          console.log(
+            `Time filled (type=${inputType}, source=${timeSource}):`,
+            timeValue,
+          );
+        } else {
+          console.warn("No time data available");
+        }
       }
     } catch (error) {
       console.warn("Time input not found:", error.message);

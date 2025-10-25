@@ -104,6 +104,42 @@ async function extractEmailData() {
     ? dateElement.getAttribute("title")
     : new Date().toISOString();
 
+  // Calculate adjusted time (received time - 25 minutes)
+  let adjustedTime = null;
+  try {
+    const receivedDate = new Date(date);
+    const adjustedDate = new Date(receivedDate.getTime() - 25 * 60 * 1000); // Subtract 25 minutes
+
+    // Safety check: If adjusted time goes before midnight, set to midnight
+    const midnight = new Date(receivedDate);
+    midnight.setHours(0, 0, 0, 0);
+
+    if (adjustedDate < midnight) {
+      console.log(
+        `⚠️ Adjusted time would be before midnight (${adjustedDate.toLocaleTimeString()}), setting to 12:00 AM`,
+      );
+      adjustedTime = midnight.getTime();
+    } else {
+      adjustedTime = adjustedDate.getTime();
+    }
+
+    const receivedTime = receivedDate.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const adjustedTimeFormatted = new Date(adjustedTime).toLocaleTimeString(
+      "en-US",
+      { hour: "2-digit", minute: "2-digit", hour12: true },
+    );
+    console.log(
+      `📅 Time adjustment: ${receivedTime} → ${adjustedTimeFormatted} (25 min earlier)`,
+    );
+  } catch (error) {
+    console.error("Error calculating adjusted time:", error);
+    adjustedTime = new Date(date).getTime(); // Fallback to original
+  }
+
   // --- Extract and Convert Images ---
   const fullImageUrls = [];
   const previewImageUrls = [];
@@ -230,6 +266,8 @@ async function extractEmailData() {
   const result = {
     senderEmail,
     date,
+    adjustedTime, // Timestamp: received time - 25 minutes
+    userEditedTime: null, // User can edit this later
     subject,
     images: imageDataUrls, // This now contains Data URIs, not URLs
     id: `email_${Date.now()}`,

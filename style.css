@@ -132,3 +132,50 @@ td img:active {
     cursor: grabbing;
     transform: scale(0.95);
 }
+
+/* Time editing styles */
+.time-cell {
+    white-space: nowrap;
+}
+
+.time-display {
+    cursor: help;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.time-display:hover {
+    background-color: #f0f2f5;
+}
+
+.edit-time-btn,
+.save-time-btn,
+.cancel-time-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 5px;
+    margin-left: 5px;
+    transition: transform 0.2s;
+}
+
+.edit-time-btn:hover,
+.save-time-btn:hover,
+.cancel-time-btn:hover {
+    transform: scale(1.2);
+}
+
+.time-edit-input {
+    padding: 4px 8px;
+    border: 2px solid #1877f2;
+    border-radius: 4px;
+    font-size: 13px;
+    outline: none;
+    width: 90px;
+}
+
+.time-edit-input:focus {
+    border-color: #005a9e;
+    box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
+}
